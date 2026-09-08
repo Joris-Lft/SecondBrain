@@ -1,5 +1,8 @@
 /// <reference types="vite/client" />
 
+/** Version applicative injectée au build (voir `define` dans vite.config.ts). */
+declare const __APP_VERSION__: string;
+
 interface ImportMetaEnv {
   readonly VITE_AIRTABLE_BASE_ID: string;
   readonly VITE_AIRTABLE_API_KEY: string;

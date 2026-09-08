@@ -1,26 +1,27 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { RouterProvider } from "react-router";
 import { ErrorBoundary } from "@/components/errors/ErrorBoundary";
 import { AuthProvider } from "@/contexts/auth-context";
 import { NavigationPreferencesProvider } from "@/contexts/navigation-preferences-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 import { router } from "@/routes/router";
+import { CACHE_MAX_AGE, queryClient, queryPersister } from "@/utils/query-client";
 import "@/styles/global.css";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      retry: 1,
-    },
-  },
-});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      // `buster` : la version applicative, pour qu'un déploiement qui change la
+      // forme des données réponde par un cache neuf plutôt que par un plantage.
+      persistOptions={{
+        persister: queryPersister,
+        maxAge: CACHE_MAX_AGE,
+        buster: __APP_VERSION__,
+      }}
+    >
       <ThemeProvider>
         <AuthProvider>
           <NavigationPreferencesProvider>
@@ -30,6 +31,6 @@ createRoot(document.getElementById("root")!).render(
           </NavigationPreferencesProvider>
         </AuthProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </StrictMode>,
 );

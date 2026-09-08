@@ -1,7 +1,7 @@
 {
   "name": "2026",
   "private": true,
-  "version": "1.5.1",
+  "version": "1.5.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
+    "@tanstack/query-sync-storage-persister": "^5.102.8",
     "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query-persist-client": "^5.102.8",
     "airtable": "^0.12.2",
     "d3-force": "^3.0.0",
     "date-fns": "^4.1.0",

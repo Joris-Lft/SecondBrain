@@ -4,6 +4,7 @@ import {
   loginWithAirtable,
   logout as logoutService,
 } from "@/services/airtable";
+import { clearQueryCache } from "@/utils/query-client";
 import type { User } from "@/types/user";
 
 interface AuthContextType {
@@ -55,6 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await logoutService();
+    // Le cache de requêtes est persisté : sans ce nettoyage, les données du
+    // compte qui se déconnecte resteraient lisibles dans le navigateur.
+    await clearQueryCache();
     setUser(null);
   };
 
