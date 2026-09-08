@@ -473,13 +473,13 @@ export function useToggleHabitLog(
         queryClient.setQueryData(queryKey, context.previous);
       }
     },
-    onSettled: () => {
-      // Uniquement quand plus aucune bascule n'est en vol : sinon chaque
-      // invalidation annule le refetch de la précédente. La garde ignore
-      // volontairement la période, car la requête couvre les trois.
-      if (queryClient.isMutating({ mutationKey: TOGGLE_MUTATION_SCOPE }) === 1) {
-        void queryClient.invalidateQueries({ queryKey });
-      }
-    },
+    /*
+     * Pas d'invalidation ici, volontairement : `onMutate` et `onSuccess`
+     * laissent déjà le cache dans l'état exact que renverrait Airtable
+     * (case cochée, identifiant de log réel). Rejouer la requête coûtait
+     * plusieurs appels API par clic — l'essentiel de notre consommation —
+     * pour réécrire des données identiques. `onError` restaure l'instantané
+     * précédent, ce qui couvre le cas où l'écriture échoue.
+     */
   });
 }
