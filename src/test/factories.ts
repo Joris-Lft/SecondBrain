@@ -1,10 +1,10 @@
-import type { Note, NoteAttachment, NoteStatus } from "@/types/notes";
+import type { Note, NoteAttachment } from "@/types/notes";
 
 let sequence = 0;
 
 /**
  * Note de test. `noteNumber` s'auto-incrémente pour refléter l'ordre de
- * création réel d'Airtable (autonumber), dont dépend la résolution des
+ * création réel (`note_number`), dont dépend la résolution des
  * titres ambigus.
  */
 export function makeNote(overrides: Partial<Note> = {}): Note {
@@ -15,8 +15,6 @@ export function makeNote(overrides: Partial<Note> = {}): Note {
     noteNumber: sequence,
     createdAt: "2026-01-01",
     content: "",
-    assigneeIds: [],
-    status: "Perso" as NoteStatus,
     attachments: [],
     tags: [],
     ...overrides,

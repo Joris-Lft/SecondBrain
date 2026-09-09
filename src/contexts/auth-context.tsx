@@ -1,9 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import {
-  checkAuthStatus,
-  loginWithAirtable,
-  logout as logoutService,
-} from "@/services/airtable";
+import { getCurrentUser, login as loginService, logout as logoutService, onAuthChange } from "@/services/auth";
 import { clearQueryCache } from "@/utils/query-client";
 import type { User } from "@/types/user";
 
@@ -25,26 +21,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
+
     void (async () => {
       try {
-        const { user: currentUser } = await checkAuthStatus();
-        setUser(currentUser);
+        const currentUser = await getCurrentUser();
+        if (active) setUser(currentUser);
       } catch (error) {
         console.error("Error checking auth:", error);
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     })();
+
+    /*
+     * Supabase entretient la session et la rafraîchit de lui-même : s'y abonner
+     * évite de lire un jeton périmé, et capte aussi la session ouverte par un
+     * lien de réinitialisation.
+     */
+    const unsubscribe = onAuthChange((nextUser) => {
+      setUser(nextUser);
+      setIsLoading(false);
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
     try {
-      const result = await loginWithAirtable({ email, password });
-      if (result) {
+      const result = await loginService({ email, password });
+      if (result.user) {
         setUser(result.user);
         return { success: true };
       }
-      return { success: false, error: "Email ou mot de passe incorrect" };
+      return { success: false, error: result.error };
     } catch (error) {
       console.error("Login error:", error);
       return {

@@ -1,6 +1,6 @@
-# 2026 — Application de tracking d'habitudes
+# SecondBrain — Application de tracking d'habitudes
 
-Application web React pour le suivi d'habitudes quotidiennes, hebdomadaires et mensuelles, avec authentification Airtable.
+Application web React pour le suivi d'habitudes quotidiennes, hebdomadaires et mensuelles, adossée à Supabase.
 
 ## Stack
 
@@ -8,7 +8,7 @@ Application web React pour le suivi d'habitudes quotidiennes, hebdomadaires et m
 - Vite
 - react-router v7
 - TanStack Query v5
-- Airtable (backend)
+- Supabase (Postgres, Auth, Storage)
 
 ## Démarrage
 
@@ -33,11 +33,10 @@ npm run dev
 | `npm run preview` | Prévisualiser le build |
 | `npm test` | Tests unitaires (Vitest) |
 | `npm run test:watch` | Tests en mode watch |
-| `npm run create-user` | Créer un utilisateur via CLI |
 
 Les tests couvrent les utilitaires purs (`src/utils/`) : dérivation de titre,
 wikilinks, graphe de notes, tags et formatage. Ils tournent en environnement
-Node — aucun DOM, aucun accès Airtable, aucun secret requis. La CI
+Node — aucun DOM, aucun accès réseau, aucun secret requis. La CI
 (`.github/workflows/ci.yml`) les rejoue sur chaque PR vers `main`.
 
 ## Structure
@@ -47,7 +46,7 @@ Node — aucun DOM, aucun accès Airtable, aucun secret requis. La CI
 ├── src/
 │   ├── pages/       # Écrans (Login, Habits, Profil…)
 │   ├── components/  # Composants UI
-│   ├── services/    # Couche Airtable
+│   ├── services/    # Couche Supabase
 │   ├── hooks/       # TanStack Query + thème
 │   └── routes/      # react-router
 ├── env.template     # Variables d'environnement
@@ -56,19 +55,24 @@ Node — aucun DOM, aucun accès Airtable, aucun secret requis. La CI
 
 ## Variables d'environnement
 
-Toutes les variables utilisent le préfixe `VITE_` (requis par Vite). Voir `env.template` pour la liste complète.
+L'application n'a besoin que de deux variables, toutes deux préfixées `VITE_` (requis par Vite) :
 
-Le token Airtable (`VITE_AIRTABLE_API_KEY`) doit porter les scopes `data.records:read`, `data.records:write` et `schema.bases:read` — ce dernier sert à lister les tags disponibles (les choix du champ `tags` de la table `Notes`, un multi-select). Sans lui, seuls les tags déjà posés sur les notes chargées sont proposés.
+| Variable | Rôle |
+|----------|------|
+| `VITE_SUPABASE_URL` | URL du projet Supabase |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Clé publique (`sb_publishable_…`) |
 
-La table `Habits` s'appuie sur deux colonnes de cycle de vie : `is_active` (case à cocher) et `deleted_date` (date). Supprimer un tracking depuis l'app l'archive — `is_active` est décochée et `deleted_date` renseignée — pour que ses logs historiques restent rattachés. Seuls les enregistrements dont `is_active` est cochée s'affichent : un habit créé directement dans Airtable doit donc avoir cette case cochée pour être visible.
+La clé publishable est publique par conception : elle n'ouvre que ce que les politiques Row Level Security autorisent, et chaque table du schéma en a une. **La clé secrète (`sb_secret_…`) ne doit jamais être préfixée `VITE_`** — Vite publierait la variable dans le bundle, et cette clé contourne toute la RLS. Seuls les scripts de migration la lisent, sous le nom `SUPABASE_SECRET_KEY`.
 
-Créer un tag depuis l'app ajoute un choix au multi-select Airtable (via l'option `typecast` du SDK) : il est donc visible par tout le monde et ne peut être supprimé que depuis Airtable. Les catégories de dépenses, elles, sont un simple champ texte : la liste proposée est reconstituée à partir des catégories déjà utilisées dans la table.
+La table `habits` s'appuie sur deux colonnes de cycle de vie : `is_active` et `deleted_date`. Supprimer un tracking depuis l'app l'archive — `is_active` passe à faux et `deleted_date` est renseignée — pour que ses logs historiques restent rattachés. Seules les lignes actives s'affichent.
+
+Les tags de notes et les catégories de dépenses sont des valeurs libres : la liste proposée à la saisie est reconstituée à partir de celles déjà utilisées.
 
 ## Déploiement (GitHub Pages)
 
 Le site est déployé automatiquement sur chaque push vers `main` via GitHub Actions.
 
-**URL :** https://joris-lft.github.io/2026/
+**URL :** https://joris-lft.github.io/SecondBrain/
 
 ### Configuration initiale (une seule fois)
 
@@ -82,7 +86,7 @@ Le site est déployé automatiquement sur chaque push vers `main` via GitHub Act
 
 ### Notes techniques
 
-- Le `base` Vite est `/2026/` en production (sous-chemin du dépôt GitHub).
+- Le `base` Vite est `/SecondBrain/` en production (sous-chemin du dépôt GitHub).
 - Un `404.html` est généré au build pour le routage SPA (react-router).
 - Le fichier `public/.nojekyll` désactive le traitement Jekyll de GitHub Pages.
 

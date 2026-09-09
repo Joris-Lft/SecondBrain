@@ -3,7 +3,7 @@ import { makeNote, resetNoteSequence } from "@/test/factories";
 import {
   MAX_NOTE_TITLE_LENGTH,
   deriveNoteTitle,
-  splitNotesByStatus,
+  sortNotesByCreatedAt,
   stripCodeBlocks,
   titleKey,
 } from "./notes";
@@ -141,34 +141,24 @@ describe("titleKey", () => {
   });
 });
 
-describe("splitNotesByStatus", () => {
-  it("sépare les notes perso des notes communes", () => {
-    const perso = makeNote({ status: "Perso" });
-    const commune = makeNote({ status: "Commune" });
-
-    const result = splitNotesByStatus([commune, perso]);
-
-    expect(result.perso.map((note) => note.id)).toEqual([perso.id]);
-    expect(result.commune.map((note) => note.id)).toEqual([commune.id]);
-  });
-
-  it("trie chaque groupe de la plus récente à la plus ancienne", () => {
+describe("sortNotesByCreatedAt", () => {
+  it("trie de la plus récente à la plus ancienne", () => {
     const vieille = makeNote({ createdAt: "2026-01-01" });
     const recente = makeNote({ createdAt: "2026-06-01" });
 
-    const result = splitNotesByStatus([vieille, recente]);
+    const result = sortNotesByCreatedAt([vieille, recente]);
 
-    expect(result.perso.map((note) => note.id)).toEqual([
-      recente.id,
-      vieille.id,
-    ]);
+    expect(result.map((note) => note.id)).toEqual([recente.id, vieille.id]);
   });
 
   it("ne modifie pas le tableau reçu", () => {
-    const notes = [makeNote({ createdAt: "2026-01-01" }), makeNote({ createdAt: "2026-06-01" })];
+    const notes = [
+      makeNote({ createdAt: "2026-01-01" }),
+      makeNote({ createdAt: "2026-06-01" }),
+    ];
     const snapshot = [...notes];
 
-    splitNotesByStatus(notes);
+    sortNotesByCreatedAt(notes);
 
     expect(notes).toEqual(snapshot);
   });

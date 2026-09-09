@@ -110,20 +110,9 @@ export function titleKey(title: string): string {
   return normalizeOptionLabel(title).normalize("NFC").toLowerCase();
 }
 
-function sortByCreatedAt(notes: Note[]): Note[] {
+/** De la plus récente à la plus ancienne, sans modifier le tableau reçu. */
+export function sortNotesByCreatedAt(notes: Note[]): Note[] {
   return [...notes].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
-}
-
-export function splitNotesByStatus(notes: Note[]): {
-  perso: Note[];
-  commune: Note[];
-} {
-  const sorted = sortByCreatedAt(notes);
-
-  return {
-    perso: sorted.filter((note) => note.status === "Perso"),
-    commune: sorted.filter((note) => note.status === "Commune"),
-  };
 }

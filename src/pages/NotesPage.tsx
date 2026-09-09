@@ -22,7 +22,7 @@ import {
 } from "@/hooks/use-notes";
 import type { Note, NoteFormInput } from "@/types/notes";
 import { filterNotesByTags } from "@/utils/tags";
-import { deriveNoteTitle, splitNotesByStatus, titleKey } from "@/utils/notes";
+import { deriveNoteTitle, sortNotesByCreatedAt, titleKey } from "@/utils/notes";
 import { backlinksBrokenByRename, countResolvedLinks } from "@/utils/wikilinks";
 import styles from "./NotesPage.module.css";
 
@@ -54,7 +54,7 @@ export function NotesPage() {
     () => new Map(notes.map((note) => [note.id, countResolvedLinks(index, note.id)])),
     [notes, index],
   );
-  const { perso, commune } = splitNotesByStatus(filteredNotes);
+  const visibleNotes = sortNotesByCreatedAt(filteredNotes);
 
   /** Pile de navigation entre notes liées ; le dernier id est la note affichée. */
   const [noteIdStack, setNoteIdStack] = useState<string[]>([]);
@@ -89,7 +89,7 @@ export function NotesPage() {
     updateNoteMutation.isPending ||
     deleteNoteMutation.isPending;
   const hasNotes = notes.length > 0;
-  const hasFilteredNotes = perso.length > 0 || commune.length > 0;
+  const hasFilteredNotes = visibleNotes.length > 0;
   const isEmpty = !isLoading && !isError && !hasNotes;
   const isFilterEmpty =
     !isLoading && !isError && hasNotes && selectedTags.length > 0 && !hasFilteredNotes;
@@ -267,44 +267,16 @@ export function NotesPage() {
           {isFilterEmpty ? (
             <EmptyState>Aucune note ne correspond aux tags sélectionnés</EmptyState>
           ) : (
-            <div className={styles.sections}>
-              {perso.length > 0 && (
-                <section className={styles.section}>
-                  <h2 className={styles.sectionTitle}>Perso</h2>
-                  <div className={styles.noteList}>
-                    {perso.map((note) => (
-                      <NoteCard
-                        key={note.id}
-                        note={note}
-                        onOpen={openNote}
-                        resolveWikiLink={resolve}
-                        linkCount={linkCounts.get(note.id) ?? 0}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {perso.length > 0 && commune.length > 0 && (
-                <hr className={styles.separator} aria-hidden />
-              )}
-
-              {commune.length > 0 && (
-                <section className={styles.section}>
-                  <h2 className={styles.sectionTitle}>Commune</h2>
-                  <div className={styles.noteList}>
-                    {commune.map((note) => (
-                      <NoteCard
-                        key={note.id}
-                        note={note}
-                        onOpen={openNote}
-                        resolveWikiLink={resolve}
-                        linkCount={linkCounts.get(note.id) ?? 0}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
+            <div className={styles.noteList}>
+              {visibleNotes.map((note) => (
+                <NoteCard
+                  key={note.id}
+                  note={note}
+                  onOpen={openNote}
+                  resolveWikiLink={resolve}
+                  linkCount={linkCounts.get(note.id) ?? 0}
+                />
+              ))}
             </div>
           )}
         </>
@@ -313,7 +285,6 @@ export function NotesPage() {
       {isModalVisible && user?.id && (
         <NoteFormModal
           isVisible={isModalVisible}
-          currentUserId={user.id}
           initialNote={selectedNote}
           availableTags={availableTags}
           onClose={closeModal}

@@ -1,16 +1,21 @@
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormField } from "@/components/ui/FormField";
 import { Input } from "@/components/ui/Input";
 import { PageShell } from "@/components/ui/PageShell";
-import { resetPassword } from "@/services/airtable";
+import { resetPassword } from "@/services/auth";
+import { useAuth } from "@/contexts/auth-context";
 import styles from "./AuthPage.module.css";
 
 export function ResetPasswordPage() {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get("token");
+  /*
+   * Le lien reçu par email ouvre l'application avec une session de
+   * récupération déjà établie par le client Supabase : c'est sa présence, et
+   * non un jeton dans l'URL, qui autorise le changement de mot de passe.
+   */
+  const { isAuthenticated, isLoading: isCheckingSession } = useAuth();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,7 +29,7 @@ export function ResetPasswordPage() {
     setError(null);
     setSuccess(null);
 
-    if (!token) return;
+    if (!isAuthenticated) return;
 
     if (!password.trim() || !confirmPassword.trim()) {
       setError("Veuillez remplir tous les champs");
@@ -42,7 +47,7 @@ export function ResetPasswordPage() {
     }
 
     setIsLoading(true);
-    const result = await resetPassword(token, password);
+    const result = await resetPassword(password);
     setIsLoading(false);
 
     if (result.success) {
@@ -62,10 +67,12 @@ export function ResetPasswordPage() {
       <Card elevated padded className={styles.card}>
         <h1 className={styles.title}>Réinitialisation</h1>
 
-        {!token ? (
+        {isCheckingSession ? (
+          <p className={styles.subtitle}>Vérification du lien…</p>
+        ) : !isAuthenticated ? (
           <>
             <p className={styles.subtitle}>
-              Ce lien de réinitialisation est invalide ou incomplet.
+              Ce lien de réinitialisation est invalide ou a expiré.
             </p>
             <p className={styles.footer}>
               <Link to="/forgot-password">Refaire une demande</Link>

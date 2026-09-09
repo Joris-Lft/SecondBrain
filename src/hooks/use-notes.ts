@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getNoteTagOptions } from "@/services/airtable-meta";
 import {
   createNote,
   deleteNote,
+  getNoteTagOptions,
   getNotesForUser,
   updateNote,
 } from "@/services/notes";
@@ -26,11 +26,11 @@ export function useNoteTagOptions(notes: Note[] = []) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Les tags déjà posés sur les notes complètent les options Airtable : un tag
+  // Les tags déjà posés sur les notes complètent les options chargées : un tag
   // tout juste créé reste visible même si le cache des options n'a pas suivi.
   const options = useMemo(
     () =>
-      mergeOptions(query.data ?? [], collectUniqueTags(notes)).sort((a, b) =>
+      mergeOptions(query.data ?? [], collectUniqueTags(notes)).sort((a: string, b: string) =>
         a.localeCompare(b, "fr"),
       ),
     [query.data, notes],
@@ -42,7 +42,7 @@ export function useNoteTagOptions(notes: Note[] = []) {
 export function useNotes(userEmail: string | undefined) {
   return useQuery({
     queryKey: notesQueryKey(userEmail),
-    queryFn: () => getNotesForUser(userEmail!),
+    queryFn: getNotesForUser,
     enabled: !!userEmail,
   });
 }

@@ -7,10 +7,10 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageShell } from "@/components/ui/PageShell";
 import {
-  isPersonalScope,
-  PROJECT_SCOPES,
-  type ProjectScope,
-} from "@/constants/project-scope";
+  PROJECTS_BASE_PATH,
+  PROJECTS_TITLE,
+  SAVINGS_LABEL,
+} from "@/constants/projects";
 import { useAuth } from "@/contexts/auth-context";
 import {
   useAvailableSavings,
@@ -23,26 +23,20 @@ import type { Deposit, DepositFormValue } from "@/types/travel-savings";
 import { formatCurrency, formatDate } from "@/utils/format";
 import styles from "./CagnottePage.module.css";
 
-type CagnottePageProps = {
-  scope: ProjectScope;
-};
-
-export function CagnottePage({ scope }: CagnottePageProps) {
-  const { basePath, listTitle, savingsLabel } = PROJECT_SCOPES[scope];
+export function CagnottePage() {
   const { user } = useAuth();
-  const { data: deposits = [], isLoading, isError } = useDeposits(scope);
-  const { total, spent, available } = useAvailableSavings(scope);
-  const createDeposit = useCreateDeposit(scope);
-  const updateDeposit = useUpdateDeposit(scope);
-  const deleteDeposit = useDeleteDeposit(scope);
+  const { data: deposits = [], isLoading, isError } = useDeposits();
+  const { total, spent, available } = useAvailableSavings();
+  const createDeposit = useCreateDeposit();
+  const updateDeposit = useUpdateDeposit();
+  const deleteDeposit = useDeleteDeposit();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selected, setSelected] = useState<Deposit | undefined>();
 
-  const authorName = (user?.Name as string) || user?.email || "";
-  // Un versement perso porte l'email de son propriétaire ; la cagnotte commune
-  // se reconnaît à un user_id vide.
-  const userId = isPersonalScope(scope) ? (user?.email ?? "") : "";
+  // L'auteur est un libellé affiché ; le propriétaire est une clé étrangère.
+  const authorName = user?.email ?? "";
+  const userId = user?.id ?? "";
 
   const openCreate = () => {
     setSelected(undefined);
@@ -81,14 +75,14 @@ export function CagnottePage({ scope }: CagnottePageProps) {
 
   return (
     <PageShell>
-      <Link to={basePath} className={styles.back}>
+      <Link to={PROJECTS_BASE_PATH} className={styles.back}>
         <ArrowLeft size={18} />
-        <span>{listTitle}</span>
+        <span>{PROJECTS_TITLE}</span>
       </Link>
 
       <div className={styles.content}>
         <Card padded className={styles.summary}>
-          <span className={styles.summaryLabel}>{savingsLabel}</span>
+          <span className={styles.summaryLabel}>{SAVINGS_LABEL}</span>
           <span className={styles.summaryTotal}>{formatCurrency(available)}</span>
           {spent > 0 && (
             <span className={styles.summaryBreakdown}>

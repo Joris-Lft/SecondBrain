@@ -15,11 +15,6 @@ const NAV_SETTINGS = [
     description: "Afficher l'onglet de suivi des habitudes",
   },
   {
-    feature: "measures" as const,
-    label: "Mensurations",
-    description: "Afficher l'onglet de suivi des mensurations",
-  },
-  {
     feature: "personalProjects" as const,
     label: "Projets perso",
     description: "Afficher l'onglet des projets personnels",

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { FormField } from "@/components/ui/FormField";
 import { Input } from "@/components/ui/Input";
 import { PageShell } from "@/components/ui/PageShell";
-import { requestPasswordReset } from "@/services/airtable";
+import { requestPasswordReset } from "@/services/auth";
 import styles from "./AuthPage.module.css";
 
 export function ForgotPasswordPage() {

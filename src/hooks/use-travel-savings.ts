@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ProjectScope } from "@/constants/project-scope";
 import { useAuth } from "@/contexts/auth-context";
 import {
   createDeposit,
@@ -15,31 +14,27 @@ import type {
 import { useTravelBudgetTotals } from "./use-travel-budget";
 import { useTravels } from "./use-travels";
 
-export function travelSavingsQueryKey(
-  scope: ProjectScope,
-  userEmail: string | undefined,
-) {
-  return ["travel-savings", scope, userEmail ?? null] as const;
+export function travelSavingsQueryKey(userEmail: string | undefined) {
+  return ["travel-savings", userEmail ?? null] as const;
 }
 
-export function useDeposits(scope: ProjectScope) {
+export function useDeposits() {
   const { user } = useAuth();
   const userEmail = user?.email;
 
   return useQuery({
-    queryKey: travelSavingsQueryKey(scope, userEmail),
-    queryFn: () => getDeposits(scope, userEmail),
+    queryKey: travelSavingsQueryKey(userEmail),
+    queryFn: getDeposits,
   });
 }
 
 /**
- * Solde d'une cagnotte : total versé, déjà dépensé et disponible (versé −
- * dépensé, borné à 0). Seuls les achats des projets du même périmètre débitent
- * la cagnotte, pour que le perso et le commun restent cloisonnés.
+ * Solde de la cagnotte : total versé, déjà dépensé et disponible (versé −
+ * dépensé, borné à 0). Les achats de tous les projets la débitent.
  */
-export function useAvailableSavings(scope: ProjectScope) {
-  const { data: deposits = [] } = useDeposits(scope);
-  const { data: travels = [] } = useTravels(scope);
+export function useAvailableSavings() {
+  const { data: deposits = [] } = useDeposits();
+  const { data: travels = [] } = useTravels();
   const { data: budgetSummary } = useTravelBudgetTotals();
 
   const total = deposits.reduce((sum, d) => sum + d.amount, 0);
@@ -52,7 +47,7 @@ export function useAvailableSavings(scope: ProjectScope) {
   return { total, spent, available: Math.max(0, total - spent) };
 }
 
-export function useCreateDeposit(scope: ProjectScope) {
+export function useCreateDeposit() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
@@ -63,13 +58,13 @@ export function useCreateDeposit(scope: ProjectScope) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: travelSavingsQueryKey(scope, user?.email),
+        queryKey: travelSavingsQueryKey(user?.email),
       });
     },
   });
 }
 
-export function useUpdateDeposit(scope: ProjectScope) {
+export function useUpdateDeposit() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
@@ -80,13 +75,13 @@ export function useUpdateDeposit(scope: ProjectScope) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: travelSavingsQueryKey(scope, user?.email),
+        queryKey: travelSavingsQueryKey(user?.email),
       });
     },
   });
 }
 
-export function useDeleteDeposit(scope: ProjectScope) {
+export function useDeleteDeposit() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
@@ -96,7 +91,7 @@ export function useDeleteDeposit(scope: ProjectScope) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: travelSavingsQueryKey(scope, user?.email),
+        queryKey: travelSavingsQueryKey(user?.email),
       });
     },
   });

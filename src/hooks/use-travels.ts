@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ProjectScope } from "@/constants/project-scope";
 import { useAuth } from "@/contexts/auth-context";
 import {
   createTravel,
@@ -15,26 +14,21 @@ import type {
 } from "@/types/travels";
 import { travelBudgetTotalsQueryKey } from "./use-travel-budget";
 
-// Les projets communs sont partagés (clé stable) ; les projets perso sont
-// propres à chaque utilisateur, d'où l'email dans la clé.
-export function travelsQueryKey(
-  scope: ProjectScope,
-  userEmail: string | undefined,
-) {
-  return ["travels", scope, userEmail ?? null] as const;
+export function travelsQueryKey(userEmail: string | undefined) {
+  return ["travels", userEmail ?? null] as const;
 }
 
 export function travelQueryKey(travelId: string | undefined) {
   return ["travel", travelId] as const;
 }
 
-export function useTravels(scope: ProjectScope) {
+export function useTravels() {
   const { user } = useAuth();
   const userEmail = user?.email;
 
   return useQuery({
-    queryKey: travelsQueryKey(scope, userEmail),
-    queryFn: () => getTravels(scope, userEmail),
+    queryKey: travelsQueryKey(userEmail),
+    queryFn: getTravels,
   });
 }
 
@@ -46,28 +40,26 @@ export function useTravel(travelId: string | undefined) {
   });
 }
 
-export function useCreateTravel(
-  userEmail: string | undefined,
-  scope: ProjectScope,
-) {
+export function useCreateTravel(userId: string | undefined) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (input: CreateTravelInput): Promise<Travel> => {
-      if (!userEmail) throw new Error("Utilisateur non connecté");
-      const result = await createTravel(userEmail, input, scope);
+      if (!userId) throw new Error("Utilisateur non connecté");
+      const result = await createTravel(userId, input);
       if (!result.travel) throw new Error(result.error ?? "Création impossible");
       return result.travel;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: travelsQueryKey(scope, userEmail),
+        queryKey: travelsQueryKey(user?.email),
       });
     },
   });
 }
 
-export function useUpdateTravel(scope: ProjectScope) {
+export function useUpdateTravel() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -79,7 +71,7 @@ export function useUpdateTravel(scope: ProjectScope) {
     },
     onSuccess: (travel) => {
       void queryClient.invalidateQueries({
-        queryKey: travelsQueryKey(scope, user?.email),
+        queryKey: travelsQueryKey(user?.email),
       });
       void queryClient.invalidateQueries({
         queryKey: travelQueryKey(travel.id),
@@ -88,7 +80,7 @@ export function useUpdateTravel(scope: ProjectScope) {
   });
 }
 
-export function useDeleteTravel(scope: ProjectScope) {
+export function useDeleteTravel() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -99,7 +91,7 @@ export function useDeleteTravel(scope: ProjectScope) {
     },
     onSuccess: (_data, travelId) => {
       void queryClient.invalidateQueries({
-        queryKey: travelsQueryKey(scope, user?.email),
+        queryKey: travelsQueryKey(user?.email),
       });
       void queryClient.removeQueries({ queryKey: travelQueryKey(travelId) });
       void queryClient.invalidateQueries({

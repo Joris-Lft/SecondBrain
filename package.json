@@ -1,5 +1,5 @@
 {
-  "name": "2026",
+  "name": "secondbrain",
   "private": true,
   "version": "1.5.2",
   "type": "module",
@@ -9,16 +9,17 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "create-user": "tsx scripts/create-user.ts",
+    "export-airtable": "tsx scripts/export-airtable.ts",
+    "import-supabase": "tsx scripts/import-supabase.ts",
     "hash-password": "tsx scripts/hash-password.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@emailjs/browser": "^4.4.1",
+    "@supabase/supabase-js": "^2.116.0",
     "@tanstack/query-sync-storage-persister": "^5.102.8",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-query-persist-client": "^5.102.8",
-    "airtable": "^0.12.2",
     "d3-force": "^3.0.0",
     "date-fns": "^4.1.0",
     "leaflet": "^1.9.4",

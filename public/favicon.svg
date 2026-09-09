@@ -1,10 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="Chatonnerie">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="SecondBrain">
   <rect width="32" height="32" rx="9" fill="#C45D3E"/>
-  <path fill="#FAF8F5" d="M8.5 15.5 6.5 7.5 12.5 12.5Z"/>
-  <path fill="#FAF8F5" d="M23.5 15.5 25.5 7.5 19.5 12.5Z"/>
-  <ellipse cx="16" cy="18.5" fill="#FAF8F5" rx="9" ry="7.5"/>
-  <circle cx="12.8" cy="17.5" r="1.6" fill="#C45D3E"/>
-  <circle cx="19.2" cy="17.5" r="1.6" fill="#C45D3E"/>
-  <path fill="#C45D3E" d="M16 19.2 14.8 21.2h2.4Z"/>
-  <path stroke="#C45D3E" stroke-linecap="round" stroke-width="1.2" d="M13.5 22.5q2.5 1.5 5 0"/>
+  <g stroke="#FAF8F5" stroke-width="1.5" stroke-linecap="round">
+    <path d="M10.5 10.5 22 13"/>
+    <path d="M10.5 10.5 12 22"/>
+    <path d="M22 13 12 22"/>
+    <path d="M22 13 22.5 22.5"/>
+    <path d="M12 22h10.5"/>
+  </g>
+  <g fill="#FAF8F5">
+    <circle cx="10.5" cy="10.5" r="3"/>
+    <circle cx="22" cy="13" r="2.4"/>
+    <circle cx="12" cy="22" r="2.4"/>
+    <circle cx="22.5" cy="22.5" r="2"/>
+  </g>
 </svg>

@@ -1,5 +1,3 @@
-export type NoteStatus = "Perso" | "Commune";
-
 export type NoteAttachment = {
   id: string;
   url: string;
@@ -13,15 +11,12 @@ export type Note = {
   noteNumber: number;
   createdAt: string;
   content: string;
-  assigneeIds: string[];
-  status: NoteStatus;
   attachments: NoteAttachment[];
   tags: string[];
 };
 
 export type NoteFormInput = {
   content: string;
-  inviteeIds: string[];
   attachmentUrls: string[];
   tags: string[];
 };

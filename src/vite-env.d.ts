@@ -4,78 +4,13 @@
 declare const __APP_VERSION__: string;
 
 interface ImportMetaEnv {
-  readonly VITE_AIRTABLE_BASE_ID: string;
-  readonly VITE_AIRTABLE_API_KEY: string;
-  readonly VITE_AIRTABLE_TABLE_NAME: string;
-  readonly VITE_AIRTABLE_EMAIL_FIELD: string;
-  readonly VITE_AIRTABLE_PASSWORD_FIELD: string;
-  readonly VITE_AIRTABLE_SHOW_HABITS_FIELD: string;
-  readonly VITE_AIRTABLE_SHOW_MEASURES_FIELD: string;
-  readonly VITE_AIRTABLE_SHOW_PERSONAL_PROJECTS_FIELD: string;
-  readonly VITE_AIRTABLE_HABITS_TABLE_NAME: string;
-  readonly VITE_AIRTABLE_HABITS_USER_ID_FIELD: string;
-  readonly VITE_AIRTABLE_HABITS_NAME_FIELD: string;
-  readonly VITE_AIRTABLE_HABITS_FREQUENCY_FIELD: string;
-  readonly VITE_AIRTABLE_HABITS_CREATED_AT_FIELD: string;
-  readonly VITE_AIRTABLE_HABITS_LOGS_TABLE_NAME: string;
-  readonly VITE_AIRTABLE_HABITS_LOGS_HABIT_ID_FIELD: string;
-  readonly VITE_AIRTABLE_HABITS_LOGS_USER_ID_FIELD: string;
-  readonly VITE_AIRTABLE_HABITS_LOGS_COMPLETED_AT_FIELD: string;
-  readonly VITE_AIRTABLE_HABITS_LOGS_FREQUENCY_FIELD: string;
-  readonly VITE_AIRTABLE_HABITS_LOGS_PERIOD_FIELD: string;
-  readonly VITE_AIRTABLE_MEASURES_TABLE_NAME: string;
-  readonly VITE_AIRTABLE_MEASURES_MEASURE_ID_FIELD: string;
-  readonly VITE_AIRTABLE_MEASURES_USER_ID_FIELD: string;
-  readonly VITE_AIRTABLE_MEASURES_DATE_FIELD: string;
-  readonly VITE_AIRTABLE_MEASURES_WEIGHT_FIELD: string;
-  readonly VITE_AIRTABLE_MEASURES_ARM_FIELD: string;
-  readonly VITE_AIRTABLE_MEASURES_BUST_FIELD: string;
-  readonly VITE_AIRTABLE_MEASURES_WAIST_FIELD: string;
-  readonly VITE_AIRTABLE_MEASURES_HIP_FIELD: string;
-  readonly VITE_AIRTABLE_MEASURES_THIGH_FIELD: string;
-  readonly VITE_AIRTABLE_NOTES_TABLE_NAME: string;
-  readonly VITE_AIRTABLE_NOTES_ID_FIELD: string;
-  readonly VITE_AIRTABLE_NOTES_CONTENT_FIELD: string;
-  readonly VITE_AIRTABLE_NOTES_ASSIGNEES_FIELD: string;
-  readonly VITE_AIRTABLE_NOTES_STATUS_FIELD: string;
-  readonly VITE_AIRTABLE_NOTES_ATTACHMENTS_FIELD: string;
-  readonly VITE_AIRTABLE_NOTES_TAGS_FIELD: string;
-  readonly VITE_AIRTABLE_NOTES_CREATED_AT_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_TABLE_NAME: string;
-  readonly VITE_AIRTABLE_TRAVELS_NAME_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_COVER_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_USER_ID_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_CREATED_AT_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_DESTINATION_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_START_DATE_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_END_DATE_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_DESCRIPTION_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_IS_VOYAGE_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVELS_IS_PERSONAL_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_TABLE_NAME: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_TRAVEL_ID_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_CATEGORY_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_LABEL_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_ESTIMATED_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_ACTUAL_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_NOTES_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_LOCATION_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_IN_BUDGET_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_TO_VISIT_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_SPEND_LEVEL_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_BUDGET_PURCHASED_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_SAVINGS_TABLE_NAME: string;
-  readonly VITE_AIRTABLE_TRAVEL_SAVINGS_AMOUNT_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_SAVINGS_AUTHOR_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_SAVINGS_DATE_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_SAVINGS_NOTE_FIELD: string;
-  readonly VITE_AIRTABLE_TRAVEL_SAVINGS_USER_ID_FIELD: string;
-  readonly VITE_PASSWORD_SALT: string;
-  readonly VITE_IMGBB_API_KEY?: string;
-  readonly VITE_RESET_TOKEN_SECRET: string;
-  readonly VITE_EMAILJS_SERVICE_ID: string;
-  readonly VITE_EMAILJS_TEMPLATE_ID: string;
-  readonly VITE_EMAILJS_PUBLIC_KEY: string;
+  readonly VITE_SUPABASE_URL: string;
+  /**
+   * Clé publique par conception : elle n'ouvre que ce que les politiques Row
+   * Level Security autorisent. La clé secrète, elle, ne doit jamais être
+   * préfixée `VITE_` — Vite n'expose que ce préfixe au bundle.
+   */
+  readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;
 }
 
 interface ImportMeta {

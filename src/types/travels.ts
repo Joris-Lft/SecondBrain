@@ -4,8 +4,6 @@ export type Travel = {
   coverUrl: string | null;
   /** Un voyage a une destination, des dates et une carte ; sinon projet classique. */
   isVoyage: boolean;
-  /** Projet privé à son créateur ; sinon projet commun, visible par tous. Fixé à la création. */
-  isPersonal: boolean;
   destination: string;
   startDate: string;
   endDate: string;

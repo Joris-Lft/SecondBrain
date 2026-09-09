@@ -3,10 +3,9 @@ import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persist
 import { removeOldestQuery } from "@tanstack/react-query-persist-client";
 
 /*
- * Le plan Free d'Airtable plafonne à 1 000 appels API par mois, tous écrans
- * confondus. Les réglages ci-dessous existent pour ce budget, pas pour le
- * confort d'affichage : chaque requête évitée est une requête qui ne sera pas
- * bloquée en fin de mois.
+ * Ces réglages sont nés du plafond d'appels d'Airtable ; ils restent utiles
+ * après la bascule sur Supabase, où le coût n'est plus le quota mais la
+ * latence et la batterie.
  */
 
 /** Au-delà, une requête est rejouée au montage suivant. */
@@ -15,7 +14,7 @@ const STALE_TIME = 5 * 60 * 1000;
 /**
  * Durée de vie du cache sur disque. Le `gcTime` doit la couvrir : une requête
  * ramassée plus tôt ne serait pas restaurée au rechargement, et repartirait
- * interroger Airtable pour rien.
+ * interroger le serveur pour rien.
  */
 export const CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 

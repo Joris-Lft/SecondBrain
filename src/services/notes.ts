@@ -2,177 +2,182 @@ import type {
   CreateNoteInput,
   Note,
   NoteAttachment,
-  NoteStatus,
   UpdateNoteInput,
 } from "@/types/notes";
 import { mergeOptions } from "@/utils/options";
-import { notesTable } from "./airtable-client";
-import {
-  AIRTABLE_NOTES_ASSIGNEES_FIELD,
-  AIRTABLE_NOTES_ATTACHMENTS_FIELD,
-  AIRTABLE_NOTES_CONTENT_FIELD,
-  AIRTABLE_NOTES_CREATED_AT_FIELD,
-  AIRTABLE_NOTES_ID_FIELD,
-  AIRTABLE_NOTES_STATUS_FIELD,
-  AIRTABLE_NOTES_TAGS_FIELD,
-} from "./airtable-config";
+import { getErrorMessage, supabase } from "./supabase-client";
 
-type AirtableAttachmentInput = { url: string };
-
-function buildUserNotesFilter(userEmail: string): string {
-  return `OR({${AIRTABLE_NOTES_ASSIGNEES_FIELD}} = "${userEmail}", FIND("${userEmail}", ARRAYJOIN({${AIRTABLE_NOTES_ASSIGNEES_FIELD}})))`;
-}
-
-function mapAttachments(value: unknown): NoteAttachment[] {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .filter(
-      (item): item is NoteAttachment =>
-        typeof item === "object" &&
-        item !== null &&
-        "id" in item &&
-        "url" in item &&
-        "filename" in item,
-    )
-    .map((item) => ({
-      id: String(item.id),
-      url: String(item.url),
-      filename: String(item.filename),
-      size: typeof item.size === "number" ? item.size : undefined,
-      type: typeof item.type === "string" ? item.type : undefined,
-    }));
-}
-
-function mapTags(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-
-  return [...new Set(value.map(String).map((tag) => tag.trim()).filter(Boolean))];
-}
-
-function mapAssigneeIds(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map(String).filter(Boolean);
-  }
-  if (typeof value === "string" && value) {
-    return [value];
-  }
-  return [];
-}
-
-function mapRecordToNote(record: {
+type AttachmentRow = {
   id: string;
-  fields: Record<string, unknown>;
-}): Note {
-  const status = record.fields[AIRTABLE_NOTES_STATUS_FIELD];
+  url: string;
+  filename: string;
+  size: number | null;
+  type: string | null;
+};
 
+type NoteRow = {
+  id: string;
+  note_number: number | null;
+  content: string;
+  tags: string[] | null;
+  created_at: string | null;
+  note_attachments?: AttachmentRow[] | null;
+};
+
+/** La note et ses pièces jointes en une requête, plutôt qu'un aller-retour par note. */
+const NOTE_SELECT = "*, note_attachments(*)";
+
+function toAttachment(row: AttachmentRow): NoteAttachment {
   return {
-    id: record.id,
-    noteNumber: Number(record.fields[AIRTABLE_NOTES_ID_FIELD] ?? 0),
-    createdAt: String(record.fields[AIRTABLE_NOTES_CREATED_AT_FIELD] ?? ""),
-    content: String(record.fields[AIRTABLE_NOTES_CONTENT_FIELD] ?? ""),
-    assigneeIds: mapAssigneeIds(record.fields[AIRTABLE_NOTES_ASSIGNEES_FIELD]),
-    status: status === "Commune" ? "Commune" : "Perso",
-    attachments: mapAttachments(record.fields[AIRTABLE_NOTES_ATTACHMENTS_FIELD]),
-    tags: mapTags(record.fields[AIRTABLE_NOTES_TAGS_FIELD]),
+    id: row.id,
+    url: row.url,
+    filename: row.filename,
+    size: row.size ?? undefined,
+    type: row.type ?? undefined,
   };
 }
 
-function sortNotesByCreatedAt(notes: Note[]): Note[] {
-  return [...notes].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+function toNote(row: NoteRow): Note {
+  return {
+    id: row.id,
+    noteNumber: row.note_number ?? 0,
+    createdAt: row.created_at ?? "",
+    content: row.content ?? "",
+    attachments: (row.note_attachments ?? []).map(toAttachment),
+    tags: mergeOptions(row.tags ?? []),
+  };
+}
+
+/** Nom de fichier lisible tiré d'une URL, pour l'affichage des pièces jointes. */
+function filenameFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    return decodeURIComponent(path.split("/").pop() || "piece-jointe");
+  } catch {
+    return "piece-jointe";
+  }
+}
+
+/**
+ * Remplace les pièces jointes d'une note par la liste fournie.
+ *
+ * Le formulaire renvoie l'état final voulu, pas un delta : on repart donc de
+ * zéro plutôt que de tenter un rapprochement ligne à ligne.
+ */
+async function replaceAttachments(noteId: string, urls: string[]) {
+  const { error: deleteError } = await supabase
+    .from("note_attachments")
+    .delete()
+    .eq("note_id", noteId);
+  if (deleteError) throw deleteError;
+
+  if (urls.length === 0) return;
+
+  const { error } = await supabase.from("note_attachments").insert(
+    urls.map((url) => ({
+      note_id: noteId,
+      url,
+      filename: filenameFromUrl(url),
+    })),
   );
+  if (error) throw error;
 }
 
-function toAirtableAttachments(urls: string[]): AirtableAttachmentInput[] {
-  return urls.map((url) => ({ url }));
+/** Notes de l'utilisateur : la RLS se charge du filtre. */
+export async function getNotesForUser(): Promise<Note[]> {
+  const { data, error } = await supabase
+    .from("notes")
+    .select(NOTE_SELECT)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Get notes error:", error);
+    throw error;
+  }
+
+  return (data ?? []).map(toNote);
 }
 
-function buildNoteFields(
-  editorId: string,
-  input: CreateNoteInput | UpdateNoteInput,
-): Record<string, string | string[] | AirtableAttachmentInput[]> {
-  const assigneeIds = [...new Set([editorId, ...input.inviteeIds])];
-  const status: NoteStatus = assigneeIds.length > 1 ? "Commune" : "Perso";
+/**
+ * Options de tags proposées à la saisie.
+ *
+ * Airtable les tenait dans le schéma d'un champ multi-select, qu'il fallait
+ * aller lire par l'API meta ; ici elles se déduisent des notes existantes.
+ */
+export async function getNoteTagOptions(): Promise<string[]> {
+  const { data, error } = await supabase.from("notes").select("tags");
 
-  return {
-    [AIRTABLE_NOTES_CONTENT_FIELD]: input.content.trim(),
-    [AIRTABLE_NOTES_ASSIGNEES_FIELD]: assigneeIds,
-    [AIRTABLE_NOTES_STATUS_FIELD]: status,
-    [AIRTABLE_NOTES_ATTACHMENTS_FIELD]: toAirtableAttachments(input.attachmentUrls),
-    [AIRTABLE_NOTES_TAGS_FIELD]: mergeOptions(input.tags),
-  };
-}
+  if (error) {
+    console.error("Get note tag options error:", error);
+    throw error;
+  }
 
-export async function getNotesForUser(userEmail: string): Promise<Note[]> {
-  const records = await notesTable
-    .select({
-      filterByFormula: buildUserNotesFilter(userEmail),
-    })
-    .all();
-
-  return sortNotesByCreatedAt(records.map(mapRecordToNote));
+  const all = (data ?? []).flatMap((row) => (row.tags as string[]) ?? []);
+  return mergeOptions(all).sort((a, b) => a.localeCompare(b, "fr"));
 }
 
 export async function createNote(
-  creatorId: string,
+  userId: string,
   input: CreateNoteInput,
 ): Promise<{ note: Note | null; error?: string }> {
+  const content = input.content.trim();
+  if (!content) {
+    return { note: null, error: "Le contenu de la note est requis" };
+  }
+
   try {
-    const content = input.content.trim();
-    if (!content) {
-      return { note: null, error: "Le contenu de la note est requis" };
-    }
+    const { data, error } = await supabase
+      .from("notes")
+      .insert({
+        user_id: userId,
+        content,
+        tags: mergeOptions(input.tags),
+        created_at: new Date().toISOString().split("T")[0],
+      })
+      .select(NOTE_SELECT)
+      .single();
 
-    const createdAt = new Date().toISOString().split("T")[0];
-    const fields = {
-      ...buildNoteFields(creatorId, input),
-      [AIRTABLE_NOTES_CREATED_AT_FIELD]: createdAt,
-    };
+    if (error || !data) throw error;
 
-    // typecast : un tag absent du multi-select Airtable y est créé automatiquement.
-    const records = await notesTable.create([{ fields: fields as never }], {
-      typecast: true,
-    });
-    const record = records[0];
-    return { note: mapRecordToNote(record) };
+    await replaceAttachments(data.id, input.attachmentUrls);
+
+    return { note: { ...toNote(data), attachments: [] } };
   } catch (error: unknown) {
     console.error("Create note error:", error);
     return {
       note: null,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la création de la note",
+      error: getErrorMessage(error, "Erreur lors de la création de la note"),
     };
   }
 }
 
 export async function updateNote(
-  editorId: string,
+  _userId: string,
   input: UpdateNoteInput,
 ): Promise<{ note: Note | null; error?: string }> {
+  const content = input.content.trim();
+  if (!content) {
+    return { note: null, error: "Le contenu de la note est requis" };
+  }
+
   try {
-    const content = input.content.trim();
-    if (!content) {
-      return { note: null, error: "Le contenu de la note est requis" };
-    }
+    const { data, error } = await supabase
+      .from("notes")
+      .update({ content, tags: mergeOptions(input.tags) })
+      .eq("id", input.id)
+      .select(NOTE_SELECT)
+      .single();
 
-    const records = await notesTable.update(
-      [{ id: input.id, fields: buildNoteFields(editorId, input) as never }],
-      { typecast: true },
-    );
-    const record = records[0];
+    if (error || !data) throw error;
 
-    return { note: mapRecordToNote(record) };
+    await replaceAttachments(input.id, input.attachmentUrls);
+
+    return { note: toNote(data) };
   } catch (error: unknown) {
     console.error("Update note error:", error);
     return {
       note: null,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la mise à jour de la note",
+      error: getErrorMessage(error, "Erreur lors de la mise à jour de la note"),
     };
   }
 }
@@ -180,17 +185,16 @@ export async function updateNote(
 export async function deleteNote(
   noteId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    await notesTable.destroy([noteId]);
-    return { success: true };
-  } catch (error: unknown) {
+  // Les pièces jointes suivent par cascade côté base.
+  const { error } = await supabase.from("notes").delete().eq("id", noteId);
+
+  if (error) {
     console.error("Delete note error:", error);
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la suppression de la note",
+      error: getErrorMessage(error, "Erreur lors de la suppression de la note"),
     };
   }
+
+  return { success: true };
 }
