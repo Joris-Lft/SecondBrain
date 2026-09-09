@@ -11,3 +11,6 @@ scripts/hash-password.ts
 .claude
 
 mockups/
+
+# Export Airtable : hashs de mots de passe et données personnelles
+migration/

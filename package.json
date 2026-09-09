@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "create-user": "tsx scripts/create-user.ts",
+    "export-airtable": "tsx scripts/export-airtable.ts",
     "hash-password": "tsx scripts/hash-password.ts",
     "test": "vitest run",
     "test:watch": "vitest"

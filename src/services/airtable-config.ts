@@ -1,5 +1,7 @@
 export function env(key: keyof ImportMetaEnv, fallback = ""): string {
-  const viteValue = import.meta.env[key];
+  // `import.meta.env` n'existe pas hors du bundle Vite : les scripts Node
+  // (export, création de compte) retombent sur `process.env`.
+  const viteValue = import.meta.env?.[key];
   if (viteValue !== undefined && viteValue !== "") {
     return viteValue;
   }
