@@ -2,7 +2,7 @@ export type Deposit = {
   id: string;
   amount: number;
   author: string;
-  /** Email du propriétaire pour un versement perso ; vide pour la cagnotte commune. */
+  /** Identifiant du compte propriétaire. */
   userId: string;
   date: string;
   note: string;

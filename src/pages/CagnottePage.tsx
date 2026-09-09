@@ -34,12 +34,9 @@ export function CagnottePage() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selected, setSelected] = useState<Deposit | undefined>();
 
-  const authorName = (user?.Name as string) || user?.email || "";
-  // Un versement perso porte l'email de son propriétaire ; la cagnotte commune
-  // se reconnaît à un user_id vide.
-  // Tous les versements portent désormais l'email de leur auteur : le vide
-  // ne servait qu'à marquer l'ancienne cagnotte commune.
-  const userId = user?.email ?? "";
+  // L'auteur est un libellé affiché ; le propriétaire est une clé étrangère.
+  const authorName = user?.email ?? "";
+  const userId = user?.id ?? "";
 
   const openCreate = () => {
     setSelected(undefined);

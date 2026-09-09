@@ -40,19 +40,20 @@ export function useTravel(travelId: string | undefined) {
   });
 }
 
-export function useCreateTravel(userEmail: string | undefined) {
+export function useCreateTravel(userId: string | undefined) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (input: CreateTravelInput): Promise<Travel> => {
-      if (!userEmail) throw new Error("Utilisateur non connecté");
-      const result = await createTravel(userEmail, input);
+      if (!userId) throw new Error("Utilisateur non connecté");
+      const result = await createTravel(userId, input);
       if (!result.travel) throw new Error(result.error ?? "Création impossible");
       return result.travel;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: travelsQueryKey(userEmail),
+        queryKey: travelsQueryKey(user?.email),
       });
     },
   });

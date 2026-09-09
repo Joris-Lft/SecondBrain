@@ -21,7 +21,7 @@ export function ProjetsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: travels = [], isLoading, isError } = useTravels();
-  const createTravelMutation = useCreateTravel(user?.email);
+  const createTravelMutation = useCreateTravel(user?.id);
   const { data: budgetSummary } = useTravelBudgetTotals();
   const { available: availableSavings } = useAvailableSavings();
 
