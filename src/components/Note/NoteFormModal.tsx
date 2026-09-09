@@ -81,7 +81,7 @@ function NoteFormModalContent({
     initialNote ? initialNote.attachments.map((a) => a.url) : [],
   );
   const [tags, setTags] = useState<string[]>(() => initialNote?.tags ?? []);
-  /** Tags créés pendant l'édition : proposés tout de suite, réellement créés dans Airtable à l'enregistrement. */
+  /** Tags créés pendant l'édition : proposés tout de suite, écrits sur la note à l'enregistrement. */
   const [createdTags, setCreatedTags] = useState<string[]>([]);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -243,22 +243,9 @@ function NoteFormModalContent({
         ? "Modifier la note"
         : "Nouvelle note";
 
-  const statusBadge =
-    mode === "view" && initialNote ? (
-      <>
-        {initialNote.noteNumber > 0 && (
-          <span className={styles.noteNumber}>#{initialNote.noteNumber}</span>
-        )}
-        <span
-          className={
-            initialNote.status === "Commune"
-              ? styles.statusCommune
-              : styles.statusPerso
-          }
-        >
-          {initialNote.status}
-        </span>
-      </>
+  const noteBadge =
+    mode === "view" && initialNote && initialNote.noteNumber > 0 ? (
+      <span className={styles.noteNumber}>#{initialNote.noteNumber}</span>
     ) : undefined;
 
   return (
@@ -270,7 +257,7 @@ function NoteFormModalContent({
       onClose={handleClose}
       title={title}
       titleId="note-modal-title"
-      titleExtra={statusBadge}
+      titleExtra={noteBadge}
       footer={
         mode === "view" && initialNote ? (
           <>

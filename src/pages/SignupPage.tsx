@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { FormField } from "@/components/ui/FormField";
 import { Input } from "@/components/ui/Input";
 import { PageShell } from "@/components/ui/PageShell";
-import { createUser } from "@/services/airtable";
+import { createUser } from "@/services/auth";
 import styles from "./AuthPage.module.css";
 
 export function SignupPage() {

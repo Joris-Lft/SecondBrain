@@ -22,7 +22,7 @@ export function travelBudgetQueryKey(travelId: string | undefined) {
 
 /**
  * Catégories proposées : les catégories par défaut, complétées par toutes celles
- * déjà utilisées dans la base (le champ Airtable est un texte libre, les lignes
+ * déjà utilisées dans la base (la colonne est un texte libre, les lignes
  * existantes sont donc la seule source des catégories créées).
  */
 export function useBudgetCategoryOptions(lines: BudgetLine[] = []) {

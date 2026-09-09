@@ -3,174 +3,146 @@ import type {
   Travel,
   UpdateTravelInput,
 } from "@/types/travels";
-import { travelsTable } from "./airtable-client";
-import {
-  AIRTABLE_TRAVELS_COVER_FIELD,
-  AIRTABLE_TRAVELS_CREATED_AT_FIELD,
-  AIRTABLE_TRAVELS_DESCRIPTION_FIELD,
-  AIRTABLE_TRAVELS_DESTINATION_FIELD,
-  AIRTABLE_TRAVELS_END_DATE_FIELD,
-  AIRTABLE_TRAVELS_IS_PERSONAL_FIELD,
-  AIRTABLE_TRAVELS_IS_VOYAGE_FIELD,
-  AIRTABLE_TRAVELS_NAME_FIELD,
-  AIRTABLE_TRAVELS_START_DATE_FIELD,
-  AIRTABLE_TRAVELS_USER_ID_FIELD,
-} from "./airtable-config";
-import { deleteBudgetLinesForTravel } from "./travel-budget";
+import { getErrorMessage, supabase } from "./supabase-client";
 
-type AirtableAttachmentInput = { url: string };
-
-function mapCoverUrl(value: unknown): string | null {
-  if (!Array.isArray(value)) return null;
-  const first = value.find(
-    (item): item is { url: string } =>
-      typeof item === "object" && item !== null && "url" in item,
-  );
-  return first ? String(first.url) : null;
-}
-
-function mapRecordToTravel(record: {
+type TravelRow = {
   id: string;
-  fields: Record<string, unknown>;
-}): Travel {
+  name: string;
+  cover_url: string | null;
+  is_voyage: boolean;
+  destination: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  description: string | null;
+  created_at: string | null;
+};
+
+function toTravel(row: TravelRow): Travel {
   return {
-    id: record.id,
-    name: String(record.fields[AIRTABLE_TRAVELS_NAME_FIELD] ?? ""),
-    coverUrl: mapCoverUrl(record.fields[AIRTABLE_TRAVELS_COVER_FIELD]),
-    isVoyage: Boolean(record.fields[AIRTABLE_TRAVELS_IS_VOYAGE_FIELD]),
-      destination: String(record.fields[AIRTABLE_TRAVELS_DESTINATION_FIELD] ?? ""),
-    startDate: String(record.fields[AIRTABLE_TRAVELS_START_DATE_FIELD] ?? ""),
-    endDate: String(record.fields[AIRTABLE_TRAVELS_END_DATE_FIELD] ?? ""),
-    description: String(record.fields[AIRTABLE_TRAVELS_DESCRIPTION_FIELD] ?? ""),
-    createdAt: String(record.fields[AIRTABLE_TRAVELS_CREATED_AT_FIELD] ?? ""),
+    id: row.id,
+    name: row.name ?? "",
+    coverUrl: row.cover_url,
+    isVoyage: row.is_voyage === true,
+    destination: row.destination ?? "",
+    startDate: row.start_date ?? "",
+    endDate: row.end_date ?? "",
+    description: row.description ?? "",
+    createdAt: row.created_at ?? "",
   };
 }
 
-function sortTravelsByCreatedAt(travels: Travel[]): Travel[] {
-  return [...travels].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+function toRow(input: CreateTravelInput | UpdateTravelInput) {
+  return {
+    name: input.name.trim(),
+    cover_url: input.coverUrl,
+    is_voyage: input.isVoyage,
+    destination: input.destination.trim(),
+    start_date: input.startDate || null,
+    end_date: input.endDate || null,
+    description: input.description.trim(),
+  };
 }
 
-function toCoverField(coverUrl: string | null): AirtableAttachmentInput[] {
-  return coverUrl ? [{ url: coverUrl }] : [];
-}
+/** Projets de l'utilisateur, du plus récent au plus ancien. RLS pour le filtre. */
+export async function getTravels(): Promise<Travel[]> {
+  const { data, error } = await supabase
+    .from("travels")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-/**
- * Tous les projets de l'utilisateur : ceux qu'il a créés, et l'historique des
- * anciens projets communs, que le passage en mono-utilisateur lui rattache.
- */
-export async function getTravels(
-  userEmail: string | undefined,
-): Promise<Travel[]> {
-  if (!userEmail) return [];
+  if (error) {
+    console.error("Get travels error:", error);
+    throw error;
+  }
 
-  const records = await travelsTable
-    .select({
-      filterByFormula: `OR(NOT({${AIRTABLE_TRAVELS_IS_PERSONAL_FIELD}}), {${AIRTABLE_TRAVELS_USER_ID_FIELD}} = "${userEmail}")`,
-    })
-    .all();
-  return sortTravelsByCreatedAt(records.map(mapRecordToTravel));
+  return (data ?? []).map(toTravel);
 }
 
 export async function getTravelById(travelId: string): Promise<Travel> {
-  const record = await travelsTable.find(travelId);
-  return mapRecordToTravel(record);
+  const { data, error } = await supabase
+    .from("travels")
+    .select("*")
+    .eq("id", travelId)
+    .single();
+
+  if (error || !data) {
+    console.error("Get travel error:", error);
+    throw error ?? new Error("Projet introuvable");
+  }
+
+  return toTravel(data);
 }
 
 export async function createTravel(
-  userEmail: string,
+  userId: string,
   input: CreateTravelInput,
 ): Promise<{ travel: Travel | null; error?: string }> {
-  try {
-    const name = input.name.trim();
-    if (!name) {
-      return { travel: null, error: "Le nom du projet est requis" };
-    }
+  if (!input.name.trim()) {
+    return { travel: null, error: "Le nom du projet est requis" };
+  }
 
-    const createdAt = new Date().toISOString().split("T")[0];
-    const fields = {
-      [AIRTABLE_TRAVELS_NAME_FIELD]: name,
-      [AIRTABLE_TRAVELS_COVER_FIELD]: toCoverField(input.coverUrl),
-      [AIRTABLE_TRAVELS_USER_ID_FIELD]: userEmail,
-      [AIRTABLE_TRAVELS_CREATED_AT_FIELD]: createdAt,
-      [AIRTABLE_TRAVELS_IS_VOYAGE_FIELD]: input.isVoyage,
-      [AIRTABLE_TRAVELS_DESTINATION_FIELD]: input.destination.trim(),
-      [AIRTABLE_TRAVELS_START_DATE_FIELD]: input.startDate || null,
-      [AIRTABLE_TRAVELS_END_DATE_FIELD]: input.endDate || null,
-      [AIRTABLE_TRAVELS_DESCRIPTION_FIELD]: input.description.trim(),
-    };
+  const { data, error } = await supabase
+    .from("travels")
+    .insert({
+      ...toRow(input),
+      user_id: userId,
+      created_at: new Date().toISOString().split("T")[0],
+    })
+    .select()
+    .single();
 
-    const records = await travelsTable.create([{ fields: fields as never }]);
-    return { travel: mapRecordToTravel(records[0]) };
-  } catch (error: unknown) {
+  if (error || !data) {
     console.error("Create travel error:", error);
     return {
       travel: null,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la création du projet",
+      error: getErrorMessage(error, "Erreur lors de la création du projet"),
     };
   }
+
+  return { travel: toTravel(data) };
 }
 
 export async function updateTravel(
   input: UpdateTravelInput,
 ): Promise<{ travel: Travel | null; error?: string }> {
-  try {
-    const name = input.name.trim();
-    if (!name) {
-      return { travel: null, error: "Le nom du projet est requis" };
-    }
+  if (!input.name.trim()) {
+    return { travel: null, error: "Le nom du projet est requis" };
+  }
 
-    const records = await travelsTable.update([
-      {
-        id: input.id,
-        fields: {
-          [AIRTABLE_TRAVELS_NAME_FIELD]: name,
-          [AIRTABLE_TRAVELS_COVER_FIELD]: toCoverField(input.coverUrl),
-          [AIRTABLE_TRAVELS_IS_VOYAGE_FIELD]: input.isVoyage,
-          [AIRTABLE_TRAVELS_DESTINATION_FIELD]: input.destination.trim(),
-          [AIRTABLE_TRAVELS_START_DATE_FIELD]: input.startDate || null,
-          [AIRTABLE_TRAVELS_END_DATE_FIELD]: input.endDate || null,
-          [AIRTABLE_TRAVELS_DESCRIPTION_FIELD]: input.description.trim(),
-        } as never,
-      },
-    ]);
+  const { data, error } = await supabase
+    .from("travels")
+    .update(toRow(input))
+    .eq("id", input.id)
+    .select()
+    .single();
 
-    return { travel: mapRecordToTravel(records[0]) };
-  } catch (error: unknown) {
+  if (error || !data) {
     console.error("Update travel error:", error);
     return {
       travel: null,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la mise à jour du projet",
+      error: getErrorMessage(error, "Erreur lors de la mise à jour du projet"),
     };
   }
+
+  return { travel: toTravel(data) };
 }
 
 /**
- * Supprime le projet et, en amont, ses lignes de budget et activités : le champ
- * travel_id de TravelBudget est un simple texte, Airtable ne cascade pas.
+ * Les lignes de budget partent en cascade : `travel_budget.travel_id` est une
+ * vraie clé étrangère, là où Airtable imposait de les supprimer à la main.
  */
 export async function deleteTravel(
   travelId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    await deleteBudgetLinesForTravel(travelId);
-    await travelsTable.destroy([travelId]);
-    return { success: true };
-  } catch (error: unknown) {
+  const { error } = await supabase.from("travels").delete().eq("id", travelId);
+
+  if (error) {
     console.error("Delete travel error:", error);
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la suppression du projet",
+      error: getErrorMessage(error, "Erreur lors de la suppression du projet"),
     };
   }
+
+  return { success: true };
 }

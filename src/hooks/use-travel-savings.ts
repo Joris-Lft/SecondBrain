@@ -24,7 +24,7 @@ export function useDeposits() {
 
   return useQuery({
     queryKey: travelSavingsQueryKey(userEmail),
-    queryFn: () => getDeposits(userEmail),
+    queryFn: getDeposits,
   });
 }
 

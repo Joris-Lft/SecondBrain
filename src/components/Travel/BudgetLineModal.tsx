@@ -51,7 +51,7 @@ function BudgetLineModalContent({
   const [category, setCategory] = useState<BudgetCategory>(
     initialLine?.category ?? DEFAULT_BUDGET_CATEGORY,
   );
-  /** Catégories créées ici : proposées tout de suite, réellement créées dans Airtable à l'enregistrement. */
+  /** Catégories créées ici : proposées tout de suite, écrites sur la ligne à l'enregistrement. */
   const [createdCategories, setCreatedCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState<string | null>(null);
   const [label, setLabel] = useState(initialLine?.label ?? "");

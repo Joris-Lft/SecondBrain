@@ -1,28 +1,24 @@
-import {
-  AIRTABLE_SHOW_HABITS_FIELD,
-  AIRTABLE_SHOW_PERSONAL_PROJECTS_FIELD,
-} from "./airtable-config";
-import { usersTable } from "./airtable-client";
 import type {
   NavFeature,
   NavigationPreferences,
 } from "@/types/navigation-preferences";
+import { getErrorMessage, supabase } from "./supabase-client";
 
-/** Champ Airtable (case à cocher) correspondant à chaque fonctionnalité. */
-const FIELD_BY_FEATURE: Record<NavFeature, string> = {
-  habits: AIRTABLE_SHOW_HABITS_FIELD,
-  personalProjects: AIRTABLE_SHOW_PERSONAL_PROJECTS_FIELD,
+/** Colonne de `profiles` correspondant à chaque fonctionnalité. */
+const COLUMN_BY_FEATURE: Record<NavFeature, string> = {
+  habits: "show_habits",
+  personalProjects: "show_personal_projects",
 };
 
-const NAV_FEATURES = Object.keys(FIELD_BY_FEATURE) as NavFeature[];
+const NAV_FEATURES = Object.keys(COLUMN_BY_FEATURE) as NavFeature[];
 
 export function parseNavigationPreferences(
-  fields: Record<string, unknown>,
+  row: Record<string, unknown>,
 ): NavigationPreferences {
   return Object.fromEntries(
     NAV_FEATURES.map((feature) => [
       feature,
-      fields[FIELD_BY_FEATURE[feature]] === true,
+      row[COLUMN_BY_FEATURE[feature]] === true,
     ]),
   ) as NavigationPreferences;
 }
@@ -30,12 +26,19 @@ export function parseNavigationPreferences(
 export async function fetchNavigationPreferences(
   userId: string,
 ): Promise<NavigationPreferences> {
-  const record = await usersTable.find(userId);
-  return parseNavigationPreferences(record.fields);
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(Object.values(COLUMN_BY_FEATURE).join(", "))
+    .eq("id", userId)
+    .single();
+
+  if (error || !data) throw error ?? new Error("Profil introuvable");
+
+  return parseNavigationPreferences(data as unknown as Record<string, unknown>);
 }
 
 /**
- * N'écrit que les champs fournis. Envoyer les trois systématiquement
+ * N'écrit que les champs fournis. Envoyer les deux systématiquement
  * réécrirait des préférences qu'on n'a peut-être jamais réussi à lire.
  */
 export async function updateNavigationPreferences(
@@ -44,26 +47,20 @@ export async function updateNavigationPreferences(
 ): Promise<void> {
   const fields = Object.fromEntries(
     NAV_FEATURES.filter((feature) => changes[feature] !== undefined).map(
-      (feature) => [FIELD_BY_FEATURE[feature], changes[feature]],
+      (feature) => [COLUMN_BY_FEATURE[feature], changes[feature]],
     ),
   );
 
   if (Object.keys(fields).length === 0) return;
 
-  await usersTable.update(userId, fields);
+  const { error } = await supabase
+    .from("profiles")
+    .update(fields)
+    .eq("id", userId);
+
+  if (error) throw error;
 }
 
 export function getAirtableErrorMessage(error: unknown): string {
-  if (error && typeof error === "object" && "message" in error) {
-    const message = (error as { message: unknown }).message;
-    if (typeof message === "string" && message.length > 0) {
-      return message;
-    }
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return "Erreur lors de l'enregistrement de la préférence";
+  return getErrorMessage(error, "Erreur lors de l'enregistrement de la préférence");
 }

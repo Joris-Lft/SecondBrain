@@ -1,18 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-// Le client Airtable s'instancie à l'import et exige une clé d'API : on le
-// remplace pour pouvoir tester la logique pure du service.
-const update = vi.fn();
-vi.mock("./airtable-client", () => ({
-  usersTable: { update, find: vi.fn() },
+// Le client Supabase s'instancie à l'import et exige une URL : on le remplace
+// pour tester la logique pure du service.
+const update = vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) }));
+vi.mock("./supabase-client", () => ({
+  supabase: { from: () => ({ update, select: vi.fn() }) },
+  getErrorMessage: (error: unknown, fallback: string) =>
+    error && typeof error === "object" && "message" in error
+      ? String((error as { message: unknown }).message)
+      : fallback,
 }));
-
-// Les noms de champs viennent de la config (surchargeables par .env) : on les
-// lit plutôt que de les coder en dur, pour tester le mappage et non un libellé.
-const {
-  AIRTABLE_SHOW_HABITS_FIELD: HABITS,
-  AIRTABLE_SHOW_PERSONAL_PROJECTS_FIELD: PROJECTS,
-} = await import("./airtable-config");
 
 const {
   getAirtableErrorMessage,
@@ -24,14 +21,13 @@ describe("parseNavigationPreferences", () => {
   it("lit les deux cases à cocher", () => {
     expect(
       parseNavigationPreferences({
-        [HABITS]: true,
-        [PROJECTS]: true,
+        show_habits: true,
+        show_personal_projects: true,
       }),
     ).toEqual({ habits: true, personalProjects: true });
   });
 
-  it("traite une case absente comme décochée", () => {
-    // Airtable omet les cases décochées dans les champs renvoyés.
+  it("traite une colonne absente comme décochée", () => {
     expect(parseNavigationPreferences({})).toEqual({
       habits: false,
       personalProjects: false,
@@ -40,11 +36,11 @@ describe("parseNavigationPreferences", () => {
 
   it("n'accepte que le booléen true, pas les valeurs truthy", () => {
     expect(
-      parseNavigationPreferences({ [HABITS]: "true", [PROJECTS]: 1 }),
-    ).toMatchObject({ habits: false, personalProjects: false });
+      parseNavigationPreferences({ show_habits: "true", show_personal_projects: 1 }),
+    ).toEqual({ habits: false, personalProjects: false });
   });
 
-  it("ignore les champs inconnus", () => {
+  it("ignore les colonnes inconnues", () => {
     expect(parseNavigationPreferences({ autre: true })).toEqual({
       habits: false,
       personalProjects: false,
@@ -54,70 +50,40 @@ describe("parseNavigationPreferences", () => {
 
 describe("updateNavigationPreferences", () => {
   it("n'écrit que le champ fourni", async () => {
-    // Écrire les deux systématiquement réactiverait silencieusement des
-    // fonctionnalités que l'utilisateur avait désactivées.
+    // Écrire les deux systématiquement réactiverait silencieusement une
+    // fonctionnalité que l'utilisateur avait désactivée.
     update.mockClear();
-    await updateNavigationPreferences("rec1", { habits: false });
+    await updateNavigationPreferences("u1", { habits: false });
 
-    expect(update).toHaveBeenCalledWith("rec1", { [HABITS]: false });
+    expect(update).toHaveBeenCalledWith({ show_habits: false });
   });
 
-  it("écrit plusieurs champs quand plusieurs sont fournis", async () => {
+  it("n'écrit rien quand aucun champ n'est fourni", async () => {
     update.mockClear();
-    await updateNavigationPreferences("rec1", {
-      habits: true,
-      personalProjects: false,
-    });
-
-    expect(update).toHaveBeenCalledWith("rec1", {
-      [HABITS]: true,
-      [PROJECTS]: false,
-    });
-  });
-
-  it("n'appelle pas Airtable quand il n'y a rien à écrire", async () => {
-    update.mockClear();
-    await updateNavigationPreferences("rec1", {});
+    await updateNavigationPreferences("u1", {});
 
     expect(update).not.toHaveBeenCalled();
   });
 
   it("ignore les champs explicitement undefined", async () => {
     update.mockClear();
-    await updateNavigationPreferences("rec1", {
+    await updateNavigationPreferences("u1", {
       habits: undefined,
       personalProjects: true,
     });
 
-    expect(update).toHaveBeenCalledWith("rec1", { [PROJECTS]: true });
+    expect(update).toHaveBeenCalledWith({ show_personal_projects: true });
   });
 });
 
 describe("getAirtableErrorMessage", () => {
-  it("utilise le message porté par l'erreur", () => {
-    expect(getAirtableErrorMessage({ message: "Champ inconnu" })).toBe(
-      "Champ inconnu",
-    );
+  it("retourne le message porté par l'erreur", () => {
+    expect(getAirtableErrorMessage({ message: "Boom" })).toBe("Boom");
   });
 
-  it("utilise le message d'une instance Error", () => {
-    expect(getAirtableErrorMessage(new Error("Réseau indisponible"))).toBe(
-      "Réseau indisponible",
-    );
-  });
-
-  it("retombe sur un message générique sur un message vide", () => {
-    expect(getAirtableErrorMessage({ message: "" })).toContain(
-      "Erreur lors de l'enregistrement",
-    );
-  });
-
-  it("retombe sur un message générique sur une valeur inattendue", () => {
-    expect(getAirtableErrorMessage(null)).toContain(
-      "Erreur lors de l'enregistrement",
-    );
-    expect(getAirtableErrorMessage("oups")).toContain(
-      "Erreur lors de l'enregistrement",
+  it("retombe sur un message générique", () => {
+    expect(getAirtableErrorMessage(null)).toBe(
+      "Erreur lors de l'enregistrement de la préférence",
     );
   });
 });

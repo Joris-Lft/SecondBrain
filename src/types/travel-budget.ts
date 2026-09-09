@@ -1,6 +1,7 @@
 /**
  * Catégories proposées par défaut. La liste n'est pas fermée : l'utilisateur peut
- * créer les siennes, qui sont alors ajoutées au select Airtable.
+ * créer les siennes : le champ est un texte libre, les lignes existantes en
+ * sont la seule source.
  */
 export const DEFAULT_BUDGET_CATEGORIES = [
   "Transport",

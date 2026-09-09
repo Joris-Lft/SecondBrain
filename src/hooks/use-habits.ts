@@ -216,7 +216,7 @@ function createEmptyData(): HabitsData {
 
 /**
  * Requête des listes à cocher : les trois périodes courantes partagent le même
- * aller-retour, exécuté une seule fois (2 appels Airtable au lieu de 6).
+ * aller-retour, exécuté une seule fois (2 requêtes au lieu de 6).
  *
  * L'historique de l'arc est volontairement à part (`useArcLogs`) : ses ~140
  * clés de période mettent près de trois secondes à revenir, et les listes ne
@@ -234,8 +234,8 @@ function useHabitsData<TResult>(
       if (!userEmail) return createEmptyData();
 
       const [habits, logs] = await Promise.all([
-        getActiveHabits(userEmail),
-        getHabitLogsForPeriods(userEmail, Object.values(periodKeys)),
+        getActiveHabits(),
+        getHabitLogsForPeriods(Object.values(periodKeys)),
       ]);
 
       return { habits, periods: buildOverview(habits, logs, periodKeys) };
@@ -269,7 +269,7 @@ function useArcLogs(userEmail: string | undefined) {
   return useQuery({
     queryKey: ["habit-arc-logs", userEmail, ARC_START, ARC_END] as const,
     queryFn: () =>
-      userEmail ? getHabitLogsForPeriods(userEmail, ALL_ARC_KEYS) : [],
+      userEmail ? getHabitLogsForPeriods(ALL_ARC_KEYS) : [],
     enabled: !!userEmail,
   });
 }
@@ -450,7 +450,7 @@ export function useToggleHabitLog(
 
       return { logId: result.log.id };
     },
-    // Bascule immédiate de la case : Airtable répond en plusieurs centaines de
+    // Bascule immédiate de la case : le serveur répond en quelques centaines de
     // millisecondes, l'attendre donnait l'impression que le clic était perdu.
     onMutate: async (habit: HabitWithStatus) => {
       await queryClient.cancelQueries({ queryKey });
@@ -475,7 +475,7 @@ export function useToggleHabitLog(
     },
     /*
      * Pas d'invalidation ici, volontairement : `onMutate` et `onSuccess`
-     * laissent déjà le cache dans l'état exact que renverrait Airtable
+     * laissent déjà le cache dans l'état exact que renverrait le serveur
      * (case cochée, identifiant de log réel). Rejouer la requête coûtait
      * plusieurs appels API par clic — l'essentiel de notre consommation —
      * pour réécrire des données identiques. `onError` restaure l'instantané

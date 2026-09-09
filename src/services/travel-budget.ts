@@ -10,24 +10,22 @@ import {
   type UpdateBudgetLineInput,
 } from "@/types/travel-budget";
 import { mergeOptions, normalizeOptionLabel } from "@/utils/options";
-import { travelBudgetTable } from "./airtable-client";
-import {
-  AIRTABLE_TRAVEL_BUDGET_ACTUAL_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_CATEGORY_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_ESTIMATED_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_IN_BUDGET_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_LABEL_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_LOCATION_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_NOTES_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_PURCHASED_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_SPEND_LEVEL_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_TO_VISIT_FIELD,
-  AIRTABLE_TRAVEL_BUDGET_TRAVEL_ID_FIELD,
-} from "./airtable-config";
+import { getErrorMessage, supabase } from "./supabase-client";
 
-function buildTravelFilter(travelId: string): string {
-  return `{${AIRTABLE_TRAVEL_BUDGET_TRAVEL_ID_FIELD}} = "${travelId}"`;
-}
+type BudgetRow = {
+  id: string;
+  travel_id: string;
+  category: string | null;
+  label: string | null;
+  estimated: number | null;
+  actual: number | null;
+  notes: string | null;
+  location: string | null;
+  in_budget: boolean;
+  to_visit: boolean;
+  purchased: boolean;
+  spend_level: string | null;
+};
 
 function mapNumber(value: unknown): number | null {
   if (typeof value === "number") return value;
@@ -38,26 +36,21 @@ function mapNumber(value: unknown): number | null {
   return null;
 }
 
-function mapRecordToBudgetLine(record: {
-  id: string;
-  fields: Record<string, unknown>;
-}): BudgetLine {
-  const rawCategory = record.fields[AIRTABLE_TRAVEL_BUDGET_CATEGORY_FIELD];
-  const rawSpendLevel = record.fields[AIRTABLE_TRAVEL_BUDGET_SPEND_LEVEL_FIELD];
+function toBudgetLine(row: BudgetRow): BudgetLine {
   return {
-    id: record.id,
+    id: row.id,
     category:
-      normalizeOptionLabel(String(rawCategory ?? "")) ||
+      normalizeOptionLabel(String(row.category ?? "")) ||
       FALLBACK_BUDGET_CATEGORY,
-    label: String(record.fields[AIRTABLE_TRAVEL_BUDGET_LABEL_FIELD] ?? ""),
-    estimated: mapNumber(record.fields[AIRTABLE_TRAVEL_BUDGET_ESTIMATED_FIELD]),
-    actual: mapNumber(record.fields[AIRTABLE_TRAVEL_BUDGET_ACTUAL_FIELD]),
-    notes: String(record.fields[AIRTABLE_TRAVEL_BUDGET_NOTES_FIELD] ?? ""),
-    location: String(record.fields[AIRTABLE_TRAVEL_BUDGET_LOCATION_FIELD] ?? ""),
-    inBudget: record.fields[AIRTABLE_TRAVEL_BUDGET_IN_BUDGET_FIELD] === true,
-    toVisit: record.fields[AIRTABLE_TRAVEL_BUDGET_TO_VISIT_FIELD] === true,
-    purchased: record.fields[AIRTABLE_TRAVEL_BUDGET_PURCHASED_FIELD] === true,
-    spendLevel: isSpendLevel(rawSpendLevel) ? rawSpendLevel : DEFAULT_SPEND_LEVEL,
+    label: row.label ?? "",
+    estimated: mapNumber(row.estimated),
+    actual: mapNumber(row.actual),
+    notes: row.notes ?? "",
+    location: row.location ?? "",
+    inBudget: row.in_budget === true,
+    toVisit: row.to_visit === true,
+    purchased: row.purchased === true,
+    spendLevel: isSpendLevel(row.spend_level) ? row.spend_level : DEFAULT_SPEND_LEVEL,
   };
 }
 
@@ -69,86 +62,85 @@ function sortBudgetLines(lines: BudgetLine[]): BudgetLine[] {
   });
 }
 
-function buildLineFields(
+function toRow(
   travelId: string,
   input: CreateBudgetLineInput | UpdateBudgetLineInput,
-): Record<string, unknown> {
+) {
   return {
-    [AIRTABLE_TRAVEL_BUDGET_TRAVEL_ID_FIELD]: travelId,
-    [AIRTABLE_TRAVEL_BUDGET_CATEGORY_FIELD]: normalizeOptionLabel(input.category),
-    [AIRTABLE_TRAVEL_BUDGET_LABEL_FIELD]: input.label.trim(),
-    [AIRTABLE_TRAVEL_BUDGET_ESTIMATED_FIELD]: input.estimated,
-    [AIRTABLE_TRAVEL_BUDGET_ACTUAL_FIELD]: input.actual,
-    [AIRTABLE_TRAVEL_BUDGET_NOTES_FIELD]: input.notes.trim(),
-    [AIRTABLE_TRAVEL_BUDGET_LOCATION_FIELD]: input.location.trim(),
-    [AIRTABLE_TRAVEL_BUDGET_IN_BUDGET_FIELD]: input.inBudget,
-    [AIRTABLE_TRAVEL_BUDGET_TO_VISIT_FIELD]: input.toVisit,
-    [AIRTABLE_TRAVEL_BUDGET_PURCHASED_FIELD]: input.purchased,
-    [AIRTABLE_TRAVEL_BUDGET_SPEND_LEVEL_FIELD]: input.spendLevel,
+    travel_id: travelId,
+    category: normalizeOptionLabel(input.category),
+    label: input.label.trim(),
+    estimated: input.estimated,
+    actual: input.actual,
+    notes: input.notes.trim(),
+    location: input.location.trim(),
+    in_budget: input.inBudget,
+    to_visit: input.toVisit,
+    purchased: input.purchased,
+    spend_level: input.spendLevel,
   };
 }
 
 export async function getBudgetForTravel(
   travelId: string,
 ): Promise<BudgetLine[]> {
-  const records = await travelBudgetTable
-    .select({ filterByFormula: buildTravelFilter(travelId) })
-    .all();
+  const { data, error } = await supabase
+    .from("travel_budget")
+    .select("*")
+    .eq("travel_id", travelId);
 
-  return sortBudgetLines(records.map(mapRecordToBudgetLine));
+  if (error) {
+    console.error("Get budget error:", error);
+    throw error;
+  }
+
+  return sortBudgetLines((data ?? []).map(toBudgetLine));
 }
 
 export type BudgetSummary = {
   /** Reste à payer par voyage (items non achetés), détaillé par niveau de dépense. */
   totalsByTravel: Record<string, TravelBudgetTotals>;
-  /** Dépensé par projet : réel payé (ou estimé) des items achetés. Ventilé par projet pour que chaque cagnotte (commune ou perso) ne soit débitée que par ses propres projets. */
+  /** Dépensé par projet : réel payé (ou estimé) des items achetés. */
   purchasedSpendByTravel: Record<string, number>;
   /**
    * Catégories utilisées dans toute la base : le champ `category` est un texte
-   * libre côté Airtable, les lignes existantes sont donc la seule source des
-   * catégories créées par les utilisateurs.
+   * libre, les lignes existantes en sont donc la seule source.
    */
   categories: string[];
 };
 
 /**
  * Synthèse budgétaire en une seule requête (pour la liste des projets et le
- * solde des cagnottes) : le reste à payer par projet (items non achetés) et le
+ * solde de la cagnotte) : le reste à payer par projet (items non achetés) et le
  * déjà dépensé par projet (items achetés).
  */
 export async function getBudgetSummary(): Promise<BudgetSummary> {
-  const records = await travelBudgetTable
-    .select({
-      fields: [
-        AIRTABLE_TRAVEL_BUDGET_TRAVEL_ID_FIELD,
-        AIRTABLE_TRAVEL_BUDGET_CATEGORY_FIELD,
-        AIRTABLE_TRAVEL_BUDGET_ESTIMATED_FIELD,
-        AIRTABLE_TRAVEL_BUDGET_ACTUAL_FIELD,
-        AIRTABLE_TRAVEL_BUDGET_PURCHASED_FIELD,
-        AIRTABLE_TRAVEL_BUDGET_SPEND_LEVEL_FIELD,
-      ],
-    })
-    .all();
+  const { data, error } = await supabase
+    .from("travel_budget")
+    .select("travel_id, category, estimated, actual, purchased, spend_level");
+
+  if (error) {
+    console.error("Get budget summary error:", error);
+    throw error;
+  }
+
+  const rows = (data ?? []) as Pick<
+    BudgetRow,
+    "travel_id" | "category" | "estimated" | "actual" | "purchased" | "spend_level"
+  >[];
 
   const totalsByTravel: Record<string, TravelBudgetTotals> = {};
   const purchasedSpendByTravel: Record<string, number> = {};
-  const categories = mergeOptions(
-    records.map((record) =>
-      String(record.fields[AIRTABLE_TRAVEL_BUDGET_CATEGORY_FIELD] ?? ""),
-    ),
-  );
+  const categories = mergeOptions(rows.map((row) => String(row.category ?? "")));
 
-  for (const record of records) {
-    const travelId = record.fields[AIRTABLE_TRAVEL_BUDGET_TRAVEL_ID_FIELD];
-    if (typeof travelId !== "string") continue;
+  for (const row of rows) {
+    const travelId = row.travel_id;
+    if (!travelId) continue;
 
-    const estimated = mapNumber(
-      record.fields[AIRTABLE_TRAVEL_BUDGET_ESTIMATED_FIELD],
-    );
+    const estimated = mapNumber(row.estimated);
 
-    if (record.fields[AIRTABLE_TRAVEL_BUDGET_PURCHASED_FIELD] === true) {
-      const actual = mapNumber(record.fields[AIRTABLE_TRAVEL_BUDGET_ACTUAL_FIELD]);
-      const spent = actual ?? estimated;
+    if (row.purchased === true) {
+      const spent = mapNumber(row.actual) ?? estimated;
       if (spent != null) {
         purchasedSpendByTravel[travelId] =
           (purchasedSpendByTravel[travelId] ?? 0) + spent;
@@ -158,9 +150,7 @@ export async function getBudgetSummary(): Promise<BudgetSummary> {
 
     if (estimated == null) continue;
 
-    const rawLevel = record.fields[AIRTABLE_TRAVEL_BUDGET_SPEND_LEVEL_FIELD];
-    const level = isSpendLevel(rawLevel) ? rawLevel : DEFAULT_SPEND_LEVEL;
-
+    const level = isSpendLevel(row.spend_level) ? row.spend_level : DEFAULT_SPEND_LEVEL;
     const entry = (totalsByTravel[travelId] ??= emptyBudgetTotals());
     entry.total += estimated;
     entry.byLevel[level] += estimated;
@@ -173,84 +163,60 @@ export async function createBudgetLine(
   travelId: string,
   input: CreateBudgetLineInput,
 ): Promise<{ line: BudgetLine | null; error?: string }> {
-  try {
-    if (!input.label.trim()) {
-      return { line: null, error: "Le libellé est requis" };
-    }
-    // typecast : une catégorie absente du select Airtable y est créée automatiquement.
-    const records = await travelBudgetTable.create(
-      [{ fields: buildLineFields(travelId, input) as never }],
-      { typecast: true },
-    );
-    return { line: mapRecordToBudgetLine(records[0]) };
-  } catch (error: unknown) {
+  const { data, error } = await supabase
+    .from("travel_budget")
+    .insert(toRow(travelId, input))
+    .select()
+    .single();
+
+  if (error || !data) {
     console.error("Create budget line error:", error);
     return {
       line: null,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la création de la ligne",
+      error: getErrorMessage(error, "Erreur lors de la création de la ligne"),
     };
   }
+
+  return { line: toBudgetLine(data) };
 }
 
 export async function updateBudgetLine(
   travelId: string,
   input: UpdateBudgetLineInput,
 ): Promise<{ line: BudgetLine | null; error?: string }> {
-  try {
-    if (!input.label.trim()) {
-      return { line: null, error: "Le libellé est requis" };
-    }
-    const records = await travelBudgetTable.update(
-      [{ id: input.id, fields: buildLineFields(travelId, input) as never }],
-      { typecast: true },
-    );
-    return { line: mapRecordToBudgetLine(records[0]) };
-  } catch (error: unknown) {
+  const { data, error } = await supabase
+    .from("travel_budget")
+    .update(toRow(travelId, input))
+    .eq("id", input.id)
+    .select()
+    .single();
+
+  if (error || !data) {
     console.error("Update budget line error:", error);
     return {
       line: null,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la mise à jour de la ligne",
+      error: getErrorMessage(error, "Erreur lors de la mise à jour de la ligne"),
     };
   }
-}
 
-/** Supprime toutes les lignes d'un projet (budget et activités), par lots de 10 (limite Airtable). */
-export async function deleteBudgetLinesForTravel(
-  travelId: string,
-): Promise<void> {
-  const records = await travelBudgetTable
-    .select({
-      filterByFormula: buildTravelFilter(travelId),
-      fields: [AIRTABLE_TRAVEL_BUDGET_TRAVEL_ID_FIELD],
-    })
-    .all();
-
-  const ids = records.map((record) => record.id);
-  for (let index = 0; index < ids.length; index += 10) {
-    await travelBudgetTable.destroy(ids.slice(index, index + 10));
-  }
+  return { line: toBudgetLine(data) };
 }
 
 export async function deleteBudgetLine(
   lineId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    await travelBudgetTable.destroy([lineId]);
-    return { success: true };
-  } catch (error: unknown) {
+  const { error } = await supabase
+    .from("travel_budget")
+    .delete()
+    .eq("id", lineId);
+
+  if (error) {
     console.error("Delete budget line error:", error);
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la suppression de la ligne",
+      error: getErrorMessage(error, "Erreur lors de la suppression de la ligne"),
     };
   }
+
+  return { success: true };
 }

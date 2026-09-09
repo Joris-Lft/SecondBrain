@@ -28,7 +28,7 @@ export function useTravels() {
 
   return useQuery({
     queryKey: travelsQueryKey(userEmail),
-    queryFn: () => getTravels(userEmail),
+    queryFn: getTravels,
   });
 }
 
