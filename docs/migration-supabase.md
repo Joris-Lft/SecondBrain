@@ -143,9 +143,10 @@ Le retirer est la simplification la plus profonde de cette migration.
 
 Les routes deviennent `/projets` et `/projets/cagnotte`.
 
-> **À vérifier au passage** : la préférence de navigation
-> `show_personal_projects` perd son sens. La renommer en `show_projects` est
-> optionnel — quelques lignes dans `navigation-preferences.ts`.
+> **Reporté au lot 5** : la préférence `show_personal_projects` a été conservée
+> telle quelle — elle pilote toujours l'affichage de l'onglet Projets. La
+> renommer en `show_projects` touchait au schéma Airtable pour un gain nul ;
+> autant le faire en écrivant le schéma Supabase.
 
 ### Les mensurations
 
@@ -215,8 +216,13 @@ toucher au thème.
 | Clé | Destination | Nature |
 |---|---|---|
 | `Project URL` | `.env` → `VITE_SUPABASE_URL` | Publique |
-| `anon public` | `.env` → `VITE_SUPABASE_ANON_KEY` | **Publique par design** — n'ouvre que ce que la RLS autorise |
-| `service_role` | Scripts de migration uniquement, **jamais** préfixée `VITE_` | **Secrète** — contourne toute la RLS |
+| `publishable` (`sb_publishable_…`) | `.env` → `VITE_SUPABASE_PUBLISHABLE_KEY` | **Publique par design** — n'ouvre que ce que la RLS autorise |
+| `secret` (`sb_secret_…`) | Scripts de migration uniquement, **jamais** préfixée `VITE_` | **Secrète** — contourne toute la RLS |
+
+> Supabase remplace les anciennes clés `anon` / `service_role` par les clés
+> `publishable` / `secret`, à privilégier pour un projet neuf. Les rôles sont
+> identiques ; la clé secrète refuse en plus les appels venant d'un navigateur,
+> garde-fou que l'ancienne `service_role` n'avait pas.
 
 5. **Déclarer les URL de redirection** dans *Authentication → URL
    Configuration* : `Site URL` à `https://joris-lft.github.io/SecondBrain/`, et
@@ -248,7 +254,7 @@ jobs:
       - run: |
           curl -sS -o /dev/null -w "%{http_code}\n" \
             "${{ secrets.SUPABASE_URL }}/rest/v1/profiles?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}"
+            -H "apikey: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}"
 ```
 
 ---
@@ -667,7 +673,7 @@ Deux points côté auth :
    ```
 
 2. **Vérifier la RLS depuis l'app**, pas depuis le SQL Editor : celui-ci
-   s'exécute en `service_role` et contourne toutes les politiques. Le test utile
+   s'exécute avec la clé secrète et contourne toutes les politiques. Le test utile
    est de se déconnecter et de constater qu'aucune donnée ne remonte.
 
 3. **Comparer visuellement les écrans**, ancienne version contre nouvelle :
@@ -701,7 +707,7 @@ une inscription, **plus aucune étape n'est irréversible**.
 | 5 | Le filtrage par compte et le retrait des mesures à l'import | Import des données d'autres personnes, ou perte de la cagnotte commune |
 | 6 | RLS oubliée sur une table | La clé publique expose cette table en écriture au monde entier |
 | 7 | Projet Free pausé après 7 jours d'inactivité | App injoignable au retour de vacances |
-| 8 | `service_role` committée ou préfixée `VITE_` | Toute la RLS contournée : pire que la situation actuelle |
+| 8 | clé secrète committée ou préfixée `VITE_` | Toute la RLS contournée : pire que la situation actuelle |
 | 9 | Dépôt renommé après la configuration Supabase | Redirect URLs à refaire, liens de reset cassés |
 | 10 | Litterbox supprime les fichiers en 24 h | Certaines couvertures sont **déjà** mortes — ne pas chercher à les récupérer |
 
@@ -711,11 +717,11 @@ une inscription, **plus aucune étape n'est irréversible**.
 
 | Lot | Contenu | Estimation | Vérifiable par |
 |---|---|---|---|
-| **0** | Renommage SecondBrain + dépôt | 2 h | App déployée sous le nouveau nom et la nouvelle URL |
+| **0** ✅ | Renommage SecondBrain + dépôt | 2 h | App déployée sous le nouveau nom et la nouvelle URL |
 | **1** | Phases 0 → 2 : projet, schéma, RLS | 2 h | Tables visibles, RLS active partout |
 | **2** | Phase 3 : export | 1 h | Décompte des lignes par table |
 | **3** | Phases 5 → 6 : import données et images | 3 h | Comptages conformes après filtrage |
-| **4** | Section 4 : retrait du partage et des mensurations | 5 h | Tests verts, plus une occurrence de `ProjectScope` ni de `Measure` |
+| **4** ✅ | Section 4 : retrait du partage et des mensurations | 5 h | Tests verts, plus une occurrence de `ProjectScope` ni de `Measure` |
 | **5** | Phase 7 : couche services et auth | 1 à 2 j | 156 tests verts, build OK |
 | **6** | Phases 4 + 8 : compte et bascule | 2 h | Parcours complet sur ton compte |
 
