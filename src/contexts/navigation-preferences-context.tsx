@@ -10,7 +10,7 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import {
   fetchNavigationPreferences,
-  getAirtableErrorMessage,
+  getPreferenceErrorMessage,
   updateNavigationPreferences,
 } from "@/services/user-preferences";
 import type {
@@ -93,7 +93,7 @@ export function NavigationPreferencesProvider({
         // On ne fabrique pas de préférences par défaut : les valeurs affichées
         // seraient fausses, et les enregistrer écraserait les vraies.
         if (!cancelled) {
-          setLoadFailure({ userId, message: getAirtableErrorMessage(error) });
+          setLoadFailure({ userId, message: getPreferenceErrorMessage(error) });
         }
       }
     })();
@@ -132,7 +132,7 @@ export function NavigationPreferencesProvider({
               }
             : current,
         );
-        setSaveFailure({ userId, message: getAirtableErrorMessage(error) });
+        setSaveFailure({ userId, message: getPreferenceErrorMessage(error) });
       });
     },
     [isCurrent, preferences, userId],

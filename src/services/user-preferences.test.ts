@@ -12,7 +12,7 @@ vi.mock("./supabase-client", () => ({
 }));
 
 const {
-  getAirtableErrorMessage,
+  getPreferenceErrorMessage,
   parseNavigationPreferences,
   updateNavigationPreferences,
 } = await import("./user-preferences");
@@ -76,13 +76,13 @@ describe("updateNavigationPreferences", () => {
   });
 });
 
-describe("getAirtableErrorMessage", () => {
+describe("getPreferenceErrorMessage", () => {
   it("retourne le message porté par l'erreur", () => {
-    expect(getAirtableErrorMessage({ message: "Boom" })).toBe("Boom");
+    expect(getPreferenceErrorMessage({ message: "Boom" })).toBe("Boom");
   });
 
   it("retombe sur un message générique", () => {
-    expect(getAirtableErrorMessage(null)).toBe(
+    expect(getPreferenceErrorMessage(null)).toBe(
       "Erreur lors de l'enregistrement de la préférence",
     );
   });

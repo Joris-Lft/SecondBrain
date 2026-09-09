@@ -61,6 +61,6 @@ export async function updateNavigationPreferences(
   if (error) throw error;
 }
 
-export function getAirtableErrorMessage(error: unknown): string {
+export function getPreferenceErrorMessage(error: unknown): string {
   return getErrorMessage(error, "Erreur lors de l'enregistrement de la préférence");
 }
