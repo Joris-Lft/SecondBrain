@@ -718,11 +718,11 @@ une inscription, **plus aucune étape n'est irréversible**.
 | Lot | Contenu | Estimation | Vérifiable par |
 |---|---|---|---|
 | **0** ✅ | Renommage SecondBrain + dépôt | 2 h | App déployée sous le nouveau nom et la nouvelle URL |
-| **1** | Phases 0 → 2 : projet, schéma, RLS | 2 h | Tables visibles, RLS active partout |
-| **2** | Phase 3 : export | 1 h | Décompte des lignes par table |
-| **3** | Phases 5 → 6 : import données et images | 3 h | Comptages conformes après filtrage |
+| **1** ✅ | Phases 0 → 2 : projet, schéma, RLS | 2 h | Tables visibles, RLS active partout |
+| **2** ✅ | Phase 3 : export | 1 h | Décompte des lignes par table |
+| **3** ✅ | Phases 5 → 6 : import données et images | 3 h | Comptages conformes après filtrage |
 | **4** ✅ | Section 4 : retrait du partage et des mensurations | 5 h | Tests verts, plus une occurrence de `ProjectScope` ni de `Measure` |
-| **5** | Phase 7 : couche services et auth | 1 à 2 j | 156 tests verts, build OK |
+| **5** ✅ | Phase 7 : couche services et auth | 1 à 2 j | 152 tests verts, build OK |
 | **6** | Phases 4 + 8 : compte et bascule | 2 h | Parcours complet sur ton compte |
 
 Total : 3 à 4 jours de travail effectif.
