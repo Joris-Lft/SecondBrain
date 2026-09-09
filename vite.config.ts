@@ -3,7 +3,7 @@ import path from "node:path";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
-const repositoryName = "2026";
+const repositoryName = "SecondBrain";
 
 const { version } = JSON.parse(
   readFileSync(path.resolve(__dirname, "package.json"), "utf-8"),

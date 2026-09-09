@@ -1,4 +1,4 @@
-# 2026 — Application de tracking d'habitudes
+# SecondBrain — Application de tracking d'habitudes
 
 Application web React pour le suivi d'habitudes quotidiennes, hebdomadaires et mensuelles, avec authentification Airtable.
 
@@ -68,7 +68,7 @@ Créer un tag depuis l'app ajoute un choix au multi-select Airtable (via l'optio
 
 Le site est déployé automatiquement sur chaque push vers `main` via GitHub Actions.
 
-**URL :** https://joris-lft.github.io/2026/
+**URL :** https://joris-lft.github.io/SecondBrain/
 
 ### Configuration initiale (une seule fois)
 
@@ -82,7 +82,7 @@ Le site est déployé automatiquement sur chaque push vers `main` via GitHub Act
 
 ### Notes techniques
 
-- Le `base` Vite est `/2026/` en production (sous-chemin du dépôt GitHub).
+- Le `base` Vite est `/SecondBrain/` en production (sous-chemin du dépôt GitHub).
 - Un `404.html` est généré au build pour le routage SPA (react-router).
 - Le fichier `public/.nojekyll` désactive le traitement Jekyll de GitHub Pages.
 
