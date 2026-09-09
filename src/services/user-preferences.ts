@@ -1,6 +1,5 @@
 import {
   AIRTABLE_SHOW_HABITS_FIELD,
-  AIRTABLE_SHOW_MEASURES_FIELD,
   AIRTABLE_SHOW_PERSONAL_PROJECTS_FIELD,
 } from "./airtable-config";
 import { usersTable } from "./airtable-client";
@@ -12,7 +11,6 @@ import type {
 /** Champ Airtable (case à cocher) correspondant à chaque fonctionnalité. */
 const FIELD_BY_FEATURE: Record<NavFeature, string> = {
   habits: AIRTABLE_SHOW_HABITS_FIELD,
-  measures: AIRTABLE_SHOW_MEASURES_FIELD,
   personalProjects: AIRTABLE_SHOW_PERSONAL_PROJECTS_FIELD,
 };
 

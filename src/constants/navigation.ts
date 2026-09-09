@@ -4,7 +4,6 @@ import {
   FolderHeart,
   FolderLock,
   NotebookPen,
-  Ruler,
   UserCircle,
 } from "lucide-react";
 import { PROJECT_SCOPES } from "@/constants/project-scope";
@@ -26,7 +25,6 @@ export const HOME_ROUTE = "/notes";
 
 export const NAV_ITEMS: NavItem[] = [
   { to: "/habits", label: "Habits", icon: BarChart3, feature: "habits" },
-  { to: "/measures", label: "Mensurations", icon: Ruler, feature: "measures" },
   { to: "/notes", label: "Notes", icon: NotebookPen },
   { to: PROJECT_SCOPES.shared.basePath, label: "Communs", icon: FolderHeart },
   {

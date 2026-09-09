@@ -4,7 +4,6 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { HabitPage } from "@/pages/HabitPage";
 import { LoginPage } from "@/pages/LoginPage";
-import { MeasurePage } from "@/pages/MeasurePage";
 import { NotesPage } from "@/pages/NotesPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { CagnottePage } from "@/pages/CagnottePage";
@@ -46,15 +45,6 @@ export const router = createBrowserRouter(
             element: (
               <FeatureRoute feature="habits">
                 <HabitPage />
-              </FeatureRoute>
-            ),
-          },
-          {
-            path: "measures",
-            handle: { title: "Mensurations" },
-            element: (
-              <FeatureRoute feature="measures">
-                <MeasurePage />
               </FeatureRoute>
             ),
           },

@@ -11,7 +11,6 @@ vi.mock("./airtable-client", () => ({
 // lit plutôt que de les coder en dur, pour tester le mappage et non un libellé.
 const {
   AIRTABLE_SHOW_HABITS_FIELD: HABITS,
-  AIRTABLE_SHOW_MEASURES_FIELD: MEASURES,
   AIRTABLE_SHOW_PERSONAL_PROJECTS_FIELD: PROJECTS,
 } = await import("./airtable-config");
 
@@ -22,35 +21,32 @@ const {
 } = await import("./user-preferences");
 
 describe("parseNavigationPreferences", () => {
-  it("lit les trois cases à cocher", () => {
+  it("lit les deux cases à cocher", () => {
     expect(
       parseNavigationPreferences({
         [HABITS]: true,
-        [MEASURES]: true,
         [PROJECTS]: true,
       }),
-    ).toEqual({ habits: true, measures: true, personalProjects: true });
+    ).toEqual({ habits: true, personalProjects: true });
   });
 
   it("traite une case absente comme décochée", () => {
     // Airtable omet les cases décochées dans les champs renvoyés.
     expect(parseNavigationPreferences({})).toEqual({
       habits: false,
-      measures: false,
       personalProjects: false,
     });
   });
 
   it("n'accepte que le booléen true, pas les valeurs truthy", () => {
     expect(
-      parseNavigationPreferences({ [HABITS]: "true", [MEASURES]: 1 }),
-    ).toMatchObject({ habits: false, measures: false });
+      parseNavigationPreferences({ [HABITS]: "true", [PROJECTS]: 1 }),
+    ).toMatchObject({ habits: false, personalProjects: false });
   });
 
   it("ignore les champs inconnus", () => {
     expect(parseNavigationPreferences({ autre: true })).toEqual({
       habits: false,
-      measures: false,
       personalProjects: false,
     });
   });
@@ -58,7 +54,7 @@ describe("parseNavigationPreferences", () => {
 
 describe("updateNavigationPreferences", () => {
   it("n'écrit que le champ fourni", async () => {
-    // Écrire les trois systématiquement réactiverait silencieusement des
+    // Écrire les deux systématiquement réactiverait silencieusement des
     // fonctionnalités que l'utilisateur avait désactivées.
     update.mockClear();
     await updateNavigationPreferences("rec1", { habits: false });
@@ -90,10 +86,10 @@ describe("updateNavigationPreferences", () => {
     update.mockClear();
     await updateNavigationPreferences("rec1", {
       habits: undefined,
-      measures: true,
+      personalProjects: true,
     });
 
-    expect(update).toHaveBeenCalledWith("rec1", { [MEASURES]: true });
+    expect(update).toHaveBeenCalledWith("rec1", { [PROJECTS]: true });
   });
 });
 

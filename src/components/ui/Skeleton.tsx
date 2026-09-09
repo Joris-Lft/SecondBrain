@@ -51,18 +51,6 @@ export function HabitListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
-export function MeasurePageSkeleton() {
-  return (
-    <div className={styles.stack}>
-      {Array.from({ length: 5 }, (_, index) => (
-        <Skeleton key={index} variant="tableRow" />
-      ))}
-      <Skeleton variant="chart" />
-      <Skeleton variant="chart" />
-    </div>
-  );
-}
-
 export function PageLoadingSkeleton({ message }: { message?: string }) {
   return (
     <div className={styles.centered} role="status">
