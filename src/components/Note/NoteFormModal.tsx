@@ -9,13 +9,11 @@ import { Markdown } from "@/components/ui/Markdown";
 import type { WikiLinkOptions } from "@/components/ui/WikiLink";
 import { Modal, ModalActions } from "@/components/ui/Modal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { Skeleton } from "@/components/ui/Skeleton";
 import type { NoteLinkCandidate } from "@/hooks/use-note-links";
 import {
   optionId,
   useWikiLinkAutocomplete,
 } from "@/hooks/use-wikilink-autocomplete";
-import { useInvitees, useUserDirectory } from "@/hooks/use-users";
 import { WikiLinkSuggestions } from "./WikiLinkSuggestions";
 import { isImageAttachment } from "@/utils/attachments";
 import { deriveNoteTitle } from "@/utils/notes";
@@ -25,7 +23,6 @@ import styles from "./NoteFormModal.module.css";
 
 interface NoteFormModalProps {
   isVisible: boolean;
-  currentUserId: string;
   initialNote?: Note;
   availableTags?: string[];
   onClose: () => void;
@@ -60,7 +57,6 @@ type PendingImage = {
 type ModalMode = "view" | "edit";
 
 function NoteFormModalContent({
-  currentUserId,
   initialNote,
   availableTags = [],
   onClose,
@@ -80,16 +76,7 @@ function NoteFormModalContent({
   const [mode, setMode] = useState<ModalMode>(isExistingNote ? "view" : "edit");
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
 
-  const { data: invitees = [], isLoading: isLoadingUsers } =
-    useInvitees(currentUserId);
-  const { data: userDirectory } = useUserDirectory();
-
   const [content, setContent] = useState(() => initialNote?.content ?? "");
-  const [inviteeIds, setInviteeIds] = useState<string[]>(() =>
-    initialNote
-      ? initialNote.assigneeIds.filter((id) => id !== currentUserId)
-      : [],
-  );
   const [keptAttachmentUrls, setKeptAttachmentUrls] = useState<string[]>(() =>
     initialNote ? initialNote.attachments.map((a) => a.url) : [],
   );
@@ -129,8 +116,6 @@ function NoteFormModalContent({
     };
   }, [pendingImages]);
 
-  const willBeCommune = inviteeIds.length > 0;
-
   const handleClose = () => {
     pendingImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
     onClose();
@@ -139,9 +124,6 @@ function NoteFormModalContent({
   const handleCancelEdit = () => {
     if (isExistingNote) {
       setContent(initialNote.content);
-      setInviteeIds(
-        initialNote.assigneeIds.filter((id) => id !== currentUserId),
-      );
       setKeptAttachmentUrls(initialNote.attachments.map((a) => a.url));
       setTags(initialNote.tags);
       setCreatedTags([]);
@@ -153,14 +135,6 @@ function NoteFormModalContent({
     }
 
     handleClose();
-  };
-
-  const toggleInvitee = (userId: string) => {
-    setInviteeIds((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId],
-    );
   };
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,7 +186,6 @@ function NoteFormModalContent({
 
       const result = await onSubmit({
         content: content.trim(),
-        inviteeIds,
         attachmentUrls: [...keptAttachmentUrls, ...uploadedUrls],
         tags,
       });
@@ -257,15 +230,6 @@ function NoteFormModalContent({
         year: "numeric",
       })
     : null;
-
-  const sharedWithEmails =
-    userDirectory?.users
-      .filter(
-        (user) =>
-          user.id !== currentUserId &&
-          initialNote?.assigneeIds.includes(user.id),
-      )
-      .map((user) => user.email) ?? [];
 
   const imageAttachments =
     initialNote?.attachments.filter(isImageAttachment) ?? [];
@@ -389,12 +353,6 @@ function NoteFormModalContent({
                 </a>
               ))}
             </div>
-          )}
-
-          {initialNote.status === "Commune" && sharedWithEmails.length > 0 && (
-            <p className={styles.readShare}>
-              Partagée avec {sharedWithEmails.join(", ")}
-            </p>
           )}
 
           {backlinks.length > 0 && onNavigateToNote && (
@@ -531,40 +489,6 @@ function NoteFormModalContent({
             />
           </FormField>
 
-          <FormField
-            label="Partager avec"
-            hint={
-              willBeCommune
-                ? "Note commune — visible par les personnes invitées"
-                : "Sans invitation, la note reste personnelle"
-            }
-          >
-            {isLoadingUsers ? (
-              <div className={styles.usersLoading}>
-                <Skeleton variant="habitRow" />
-                <Skeleton variant="habitRow" />
-              </div>
-            ) : invitees.length === 0 ? (
-              <p className={styles.noUsers}>
-                Aucun autre utilisateur disponible
-              </p>
-            ) : (
-              <ul className={styles.userList}>
-                {invitees.map((user) => (
-                  <li key={user.id}>
-                    <label className={styles.userOption}>
-                      <input
-                        type="checkbox"
-                        checked={inviteeIds.includes(user.id)}
-                        onChange={() => toggleInvitee(user.id)}
-                      />
-                      <span>{user.email}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </FormField>
         </>
       )}
     </Modal>

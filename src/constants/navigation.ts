@@ -2,11 +2,10 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   FolderHeart,
-  FolderLock,
   NotebookPen,
   UserCircle,
 } from "lucide-react";
-import { PROJECT_SCOPES } from "@/constants/project-scope";
+import { PROJECTS_BASE_PATH, PROJECTS_TITLE } from "@/constants/projects";
 import type { NavFeature, NavigationPreferences } from "@/types/navigation-preferences";
 
 export type NavItem = {
@@ -26,11 +25,10 @@ export const HOME_ROUTE = "/notes";
 export const NAV_ITEMS: NavItem[] = [
   { to: "/habits", label: "Habits", icon: BarChart3, feature: "habits" },
   { to: "/notes", label: "Notes", icon: NotebookPen },
-  { to: PROJECT_SCOPES.shared.basePath, label: "Communs", icon: FolderHeart },
   {
-    to: PROJECT_SCOPES.personal.basePath,
-    label: "Perso",
-    icon: FolderLock,
+    to: PROJECTS_BASE_PATH,
+    label: PROJECTS_TITLE,
+    icon: FolderHeart,
     feature: "personalProjects",
   },
   { to: "/profil", label: "Profil", icon: UserCircle },

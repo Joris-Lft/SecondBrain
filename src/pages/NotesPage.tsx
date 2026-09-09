@@ -313,7 +313,6 @@ export function NotesPage() {
       {isModalVisible && user?.id && (
         <NoteFormModal
           isVisible={isModalVisible}
-          currentUserId={user.id}
           initialNote={selectedNote}
           availableTags={availableTags}
           onClose={closeModal}

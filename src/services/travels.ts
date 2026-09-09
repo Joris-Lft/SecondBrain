@@ -1,4 +1,3 @@
-import type { ProjectScope } from "@/constants/project-scope";
 import type {
   CreateTravelInput,
   Travel,
@@ -39,8 +38,7 @@ function mapRecordToTravel(record: {
     name: String(record.fields[AIRTABLE_TRAVELS_NAME_FIELD] ?? ""),
     coverUrl: mapCoverUrl(record.fields[AIRTABLE_TRAVELS_COVER_FIELD]),
     isVoyage: Boolean(record.fields[AIRTABLE_TRAVELS_IS_VOYAGE_FIELD]),
-    isPersonal: Boolean(record.fields[AIRTABLE_TRAVELS_IS_PERSONAL_FIELD]),
-    destination: String(record.fields[AIRTABLE_TRAVELS_DESTINATION_FIELD] ?? ""),
+      destination: String(record.fields[AIRTABLE_TRAVELS_DESTINATION_FIELD] ?? ""),
     startDate: String(record.fields[AIRTABLE_TRAVELS_START_DATE_FIELD] ?? ""),
     endDate: String(record.fields[AIRTABLE_TRAVELS_END_DATE_FIELD] ?? ""),
     description: String(record.fields[AIRTABLE_TRAVELS_DESCRIPTION_FIELD] ?? ""),
@@ -58,26 +56,19 @@ function toCoverField(coverUrl: string | null): AirtableAttachmentInput[] {
   return coverUrl ? [{ url: coverUrl }] : [];
 }
 
-function buildScopeFilter(scope: ProjectScope, userEmail: string): string {
-  if (scope === "personal") {
-    return `AND({${AIRTABLE_TRAVELS_IS_PERSONAL_FIELD}}, {${AIRTABLE_TRAVELS_USER_ID_FIELD}} = "${userEmail}")`;
-  }
-  return `NOT({${AIRTABLE_TRAVELS_IS_PERSONAL_FIELD}})`;
-}
-
 /**
- * Projets communs : partagés entre tous les utilisateurs (le champ user_id n'est
- * qu'une métadonnée « créateur »). Projets perso : réservés à leur créateur,
- * identifié par son email dans user_id.
+ * Tous les projets de l'utilisateur : ceux qu'il a créés, et l'historique des
+ * anciens projets communs, que le passage en mono-utilisateur lui rattache.
  */
 export async function getTravels(
-  scope: ProjectScope,
   userEmail: string | undefined,
 ): Promise<Travel[]> {
-  if (scope === "personal" && !userEmail) return [];
+  if (!userEmail) return [];
 
   const records = await travelsTable
-    .select({ filterByFormula: buildScopeFilter(scope, userEmail ?? "") })
+    .select({
+      filterByFormula: `OR(NOT({${AIRTABLE_TRAVELS_IS_PERSONAL_FIELD}}), {${AIRTABLE_TRAVELS_USER_ID_FIELD}} = "${userEmail}")`,
+    })
     .all();
   return sortTravelsByCreatedAt(records.map(mapRecordToTravel));
 }
@@ -90,7 +81,6 @@ export async function getTravelById(travelId: string): Promise<Travel> {
 export async function createTravel(
   userEmail: string,
   input: CreateTravelInput,
-  scope: ProjectScope,
 ): Promise<{ travel: Travel | null; error?: string }> {
   try {
     const name = input.name.trim();
@@ -105,7 +95,6 @@ export async function createTravel(
       [AIRTABLE_TRAVELS_USER_ID_FIELD]: userEmail,
       [AIRTABLE_TRAVELS_CREATED_AT_FIELD]: createdAt,
       [AIRTABLE_TRAVELS_IS_VOYAGE_FIELD]: input.isVoyage,
-      [AIRTABLE_TRAVELS_IS_PERSONAL_FIELD]: scope === "personal",
       [AIRTABLE_TRAVELS_DESTINATION_FIELD]: input.destination.trim(),
       [AIRTABLE_TRAVELS_START_DATE_FIELD]: input.startDate || null,
       [AIRTABLE_TRAVELS_END_DATE_FIELD]: input.endDate || null,

@@ -21,7 +21,6 @@ export type Note = {
 
 export type NoteFormInput = {
   content: string;
-  inviteeIds: string[];
   attachmentUrls: string[];
   tags: string[];
 };

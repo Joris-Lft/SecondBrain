@@ -1,4 +1,3 @@
-import type { ProjectScope } from "@/constants/project-scope";
 import type {
   CreateDepositInput,
   Deposit,
@@ -54,26 +53,20 @@ function buildFields(
   };
 }
 
-function buildScopeFilter(scope: ProjectScope, userEmail: string): string {
-  if (scope === "personal") {
-    return `{${AIRTABLE_TRAVEL_SAVINGS_USER_ID_FIELD}} = "${userEmail}"`;
-  }
-  return `{${AIRTABLE_TRAVEL_SAVINGS_USER_ID_FIELD}} = ""`;
-}
-
 /**
- * Cagnotte commune : versements sans user_id, partagés entre tous (dont tout
- * l'historique antérieur aux cagnottes perso). Cagnotte perso : versements
- * portant l'email de leur propriétaire.
+ * La cagnotte de l'utilisateur : ses versements, et ceux de l'ancienne cagnotte
+ * commune — reconnaissables à leur user_id vide — que le passage en
+ * mono-utilisateur lui rattache.
  */
 export async function getDeposits(
-  scope: ProjectScope,
   userEmail: string | undefined,
 ): Promise<Deposit[]> {
-  if (scope === "personal" && !userEmail) return [];
+  if (!userEmail) return [];
 
   const records = await travelSavingsTable
-    .select({ filterByFormula: buildScopeFilter(scope, userEmail ?? "") })
+    .select({
+      filterByFormula: `OR({${AIRTABLE_TRAVEL_SAVINGS_USER_ID_FIELD}} = "", {${AIRTABLE_TRAVEL_SAVINGS_USER_ID_FIELD}} = "${userEmail}")`,
+    })
     .all();
   const deposits = records
     .map(mapRecordToDeposit)

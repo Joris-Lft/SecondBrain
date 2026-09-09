@@ -14,7 +14,6 @@ import { ProjetDetailPage } from "@/pages/ProjetDetailPage";
 import { ProjetsPage } from "@/pages/ProjetsPage";
 import { HOME_ROUTE } from "@/constants/navigation";
 import { FeatureRoute } from "@/routes/FeatureRoute";
-import { LegacyTravelRedirect } from "@/routes/LegacyTravelRedirect";
 import { GuestRoute, ProtectedRoute } from "@/routes/RouteGuards";
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -50,54 +49,32 @@ export const router = createBrowserRouter(
           },
           { path: "notes", element: <NotesPage />, handle: { title: "Notes" } },
           {
-            path: "projets-communs",
-            element: <ProjetsPage scope="shared" />,
-            handle: { title: "Projets communs" },
+            path: "projets",
+            handle: { title: "Projets" },
+            element: (
+              <FeatureRoute feature="personalProjects">
+                <ProjetsPage />
+              </FeatureRoute>
+            ),
           },
           {
-            path: "projets-communs/cagnotte",
-            element: <CagnottePage scope="shared" />,
-            handle: { title: "Cagnotte commune" },
+            path: "projets/cagnotte",
+            handle: { title: "Cagnotte" },
+            element: (
+              <FeatureRoute feature="personalProjects">
+                <CagnottePage />
+              </FeatureRoute>
+            ),
           },
           {
-            path: "projets-communs/:travelId",
-            element: <ProjetDetailPage scope="shared" />,
+            path: "projets/:travelId",
             handle: { title: "Projet" },
-          },
-          {
-            path: "projets-perso",
-            handle: { title: "Projets perso" },
             element: (
               <FeatureRoute feature="personalProjects">
-                <ProjetsPage scope="personal" />
+                <ProjetDetailPage />
               </FeatureRoute>
             ),
           },
-          {
-            path: "projets-perso/cagnotte",
-            handle: { title: "Ma cagnotte" },
-            element: (
-              <FeatureRoute feature="personalProjects">
-                <CagnottePage scope="personal" />
-              </FeatureRoute>
-            ),
-          },
-          {
-            path: "projets-perso/:travelId",
-            handle: { title: "Projet perso" },
-            element: (
-              <FeatureRoute feature="personalProjects">
-                <ProjetDetailPage scope="personal" />
-              </FeatureRoute>
-            ),
-          },
-          // Anciennes URLs des projets, avant le renommage /voyages → /projets-communs.
-          { path: "voyages", element: <Navigate to="/projets-communs" replace /> },
-          {
-            path: "voyages/cagnotte",
-            element: <Navigate to="/projets-communs/cagnotte" replace />,
-          },
-          { path: "voyages/:travelId", element: <LegacyTravelRedirect /> },
           { path: "profil", element: <ProfilPage />, handle: { title: "Profil" } },
         ],
       },

@@ -92,13 +92,13 @@ function buildNoteFields(
   editorId: string,
   input: CreateNoteInput | UpdateNoteInput,
 ): Record<string, string | string[] | AirtableAttachmentInput[]> {
-  const assigneeIds = [...new Set([editorId, ...input.inviteeIds])];
-  const status: NoteStatus = assigneeIds.length > 1 ? "Commune" : "Perso";
-
+  // Une note n'a plus qu'un destinataire : son auteur. Le champ Assignees et le
+  // statut restent écrits pour ne pas dépeupler la base tant qu'on est sur
+  // Airtable ; ils disparaîtront avec la migration.
   return {
     [AIRTABLE_NOTES_CONTENT_FIELD]: input.content.trim(),
-    [AIRTABLE_NOTES_ASSIGNEES_FIELD]: assigneeIds,
-    [AIRTABLE_NOTES_STATUS_FIELD]: status,
+    [AIRTABLE_NOTES_ASSIGNEES_FIELD]: [editorId],
+    [AIRTABLE_NOTES_STATUS_FIELD]: "Perso" satisfies NoteStatus,
     [AIRTABLE_NOTES_ATTACHMENTS_FIELD]: toAirtableAttachments(input.attachmentUrls),
     [AIRTABLE_NOTES_TAGS_FIELD]: mergeOptions(input.tags),
   };

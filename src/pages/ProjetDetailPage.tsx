@@ -17,11 +17,7 @@ import { Markdown } from "@/components/ui/Markdown";
 import { PageShell } from "@/components/ui/PageShell";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { PageLoadingSkeleton } from "@/components/ui/Skeleton";
-import {
-  isPersonalScope,
-  PROJECT_SCOPES,
-  type ProjectScope,
-} from "@/constants/project-scope";
+import { PROJECTS_BASE_PATH, PROJECTS_TITLE } from "@/constants/projects";
 import { useTravelBudget } from "@/hooks/use-travel-budget";
 import { useAvailableSavings } from "@/hooks/use-travel-savings";
 import {
@@ -35,10 +31,6 @@ import { formatDate } from "@/utils/format";
 import styles from "./ProjetDetailPage.module.css";
 
 type TravelTab = "apercu" | "budget" | "activites";
-
-type ProjetDetailPageProps = {
-  scope: ProjectScope;
-};
 
 function buildTravelTabs(isVoyage: boolean): { value: TravelTab; label: string }[] {
   const tabs: { value: TravelTab; label: string }[] = [
@@ -56,22 +48,14 @@ function formatDateRange(start: string, end: string): string | null {
   return null;
 }
 
-export function ProjetDetailPage({ scope }: ProjetDetailPageProps) {
+export function ProjetDetailPage() {
   const { travelId } = useParams<{ travelId: string }>();
   const navigate = useNavigate();
-  const { basePath, listTitle } = PROJECT_SCOPES[scope];
-  const { data: loadedTravel, isLoading, isError } = useTravel(travelId);
-  const updateTravelMutation = useUpdateTravel(scope);
-  const deleteTravelMutation = useDeleteTravel(scope);
+  const { data: travel, isLoading, isError } = useTravel(travelId);
+  const updateTravelMutation = useUpdateTravel();
+  const deleteTravelMutation = useDeleteTravel();
   const { data: budgetLines = [] } = useTravelBudget(travelId);
-  const { available: availableSavings } = useAvailableSavings(scope);
-
-  // Un projet ne s'ouvre que depuis les URLs de son propre périmètre : un projet
-  // commun n'est pas consultable sous /projets-perso, et inversement.
-  const travel =
-    loadedTravel && loadedTravel.isPersonal === isPersonalScope(scope)
-      ? loadedTravel
-      : undefined;
+  const { available: availableSavings } = useAvailableSavings();
 
   const budgetTotals = useMemo(
     () => sumBudgetTotals(budgetLines),
@@ -92,7 +76,7 @@ export function ProjetDetailPage({ scope }: ProjetDetailPageProps) {
     if (!travel) return;
     await deleteTravelMutation.mutateAsync(travel.id);
     setIsEditVisible(false);
-    void navigate(basePath, { replace: true });
+    void navigate(PROJECTS_BASE_PATH, { replace: true });
   };
 
   const dateRange = travel ? formatDateRange(travel.startDate, travel.endDate) : null;
@@ -111,9 +95,9 @@ export function ProjetDetailPage({ scope }: ProjetDetailPageProps) {
 
   return (
     <PageShell>
-      <Link to={basePath} className={styles.back}>
+      <Link to={PROJECTS_BASE_PATH} className={styles.back}>
         <ArrowLeft size={18} />
-        <span>{listTitle}</span>
+        <span>{PROJECTS_TITLE}</span>
       </Link>
 
       {isLoading ? (
