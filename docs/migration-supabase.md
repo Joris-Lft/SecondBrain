@@ -6,23 +6,73 @@
 
 ## Sommaire
 
-1. [Ce qui change, et pourquoi](#1-ce-qui-change-et-pourquoi)
-2. [Décisions à prendre avant de commencer](#2-décisions-à-prendre-avant-de-commencer)
-3. [Phase 0 — Créer le compte et le projet Supabase](#phase-0--créer-le-compte-et-le-projet-supabase)
-4. [Phase 1 — Le schéma SQL](#phase-1--le-schéma-sql)
-5. [Phase 2 — Row Level Security](#phase-2--row-level-security)
-6. [Phase 3 — Export Airtable](#phase-3--export-airtable)
-7. [Phase 4 — Les comptes utilisateurs](#phase-4--les-comptes-utilisateurs)
-8. [Phase 5 — Import des données](#phase-5--import-des-données)
-9. [Phase 6 — Les images](#phase-6--les-images)
-10. [Phase 7 — Réécriture de la couche services](#phase-7--réécriture-de-la-couche-services)
-11. [Phase 8 — Bascule et vérification](#phase-8--bascule-et-vérification)
-12. [Pièges identifiés](#pièges-identifiés)
-13. [Découpage en lots](#découpage-en-lots)
+1. [Prérequis](#1-prérequis)
+2. [Ce qui change, et pourquoi](#2-ce-qui-change-et-pourquoi)
+3. [Décisions à prendre avant de commencer](#3-décisions-à-prendre-avant-de-commencer)
+4. [Phase 0 — Créer le compte et le projet Supabase](#phase-0--créer-le-compte-et-le-projet-supabase)
+5. [Phase 1 — Le schéma SQL](#phase-1--le-schéma-sql)
+6. [Phase 2 — Row Level Security](#phase-2--row-level-security)
+7. [Phase 3 — Export Airtable](#phase-3--export-airtable)
+8. [Phase 4 — Les comptes utilisateurs](#phase-4--les-comptes-utilisateurs)
+9. [Phase 5 — Import des données](#phase-5--import-des-données)
+10. [Phase 6 — Les images](#phase-6--les-images)
+11. [Phase 7 — Réécriture de la couche services](#phase-7--réécriture-de-la-couche-services)
+12. [Phase 8 — Bascule et vérification](#phase-8--bascule-et-vérification)
+13. [Pièges identifiés](#pièges-identifiés)
+14. [Découpage en lots](#découpage-en-lots)
 
 ---
 
-## 1. Ce qui change, et pourquoi
+## 1. Prérequis
+
+Quatre points à régler avant le lot 1. Les deux premiers coûtent cinq minutes
+et évitent un blocage coûteux plus loin.
+
+### 1.1 Déployer la réduction de consommation
+
+La PR #23 (`perf(cache)`) doit être mergée et déployée. Elle divise la
+consommation par 5 à 10 : c'est ce qui laisse de la marge de quota pendant les
+3 à 4 jours de migration.
+
+### 1.2 Dupliquer la base Airtable
+
+*Duplicate base* depuis l'interface. L'opération ne consomme **aucun appel
+API** — elle ne passe pas par l'API — et fige un point de retour pour toute la
+durée de la migration.
+
+### 1.3 Ajouter un champ formule `RECORD_ID()` dans les 8 tables
+
+Le prérequis le moins évident, et le plus utile.
+
+Toute la migration repose sur les identifiants `recXXX` pour reconstruire les
+liens : `travel_id` des lignes de budget, `habit_id` des logs, assignations des
+notes. Si l'API venait à être bloquée, le seul recours serait l'export CSV
+manuel — **qui ne contient pas les identifiants de records**. Les relations
+seraient alors irrécupérables.
+
+Un champ formule `RECORD_ID()`, lui, sort dans le CSV. Cinq minutes d'assurance
+contre un scénario qui coûterait des heures de ressaisie.
+
+### 1.4 Relever l'état du quota
+
+Dans le dashboard Airtable, et noter la date du mail de dépassement : c'est elle
+qui démarre les 30 jours de grace period.
+
+À savoir pour ne pas surestimer l'urgence : **même bloqué, le quota se
+réinitialise le 1er du mois**, et 1 000 appels frais couvrent très largement un
+export qui en consomme 30 à 60. Le pire scénario n'est pas la perte de données,
+c'est d'attendre le 1er du mois suivant pour lancer le lot 2.
+
+### Ce qui n'est pas un prérequis
+
+Node et `tsx` sont déjà en place. Le seul ajout de dépendance est
+`@supabase/supabase-js`, au lot 4. La validité des emails des comptes est à
+vérifier avant le **lot 5** seulement — elle se contrôle sur l'export du lot 2,
+qui répond en même temps à la décision 2.4.
+
+---
+
+## 2. Ce qui change, et pourquoi
 
 | Aujourd'hui | Après |
 |---|---|
@@ -39,12 +89,12 @@ le volume de cette app.
 
 ---
 
-## 2. Décisions à prendre avant de commencer
+## 3. Décisions à prendre avant de commencer
 
 Ces quatre points conditionnent la suite. Les trois premiers ont une
 recommandation ; le quatrième dépend d'un chiffre que tu es seul à connaître.
 
-### 2.1 Les mots de passe existants sont perdus
+### 3.1 Les mots de passe existants sont perdus
 
 C'est le point dur de la migration, et il n'a pas de solution élégante.
 
@@ -62,7 +112,7 @@ Bénéfice collatéral : le hachage actuel (SHA-256, une seule itération, sel
 global partagé) est cassable au dictionnaire quasi instantanément. Le remplacer
 n'est pas un dommage collatéral de la migration, c'est un gain.
 
-### 2.2 Les emails transactionnels
+### 3.2 Les emails transactionnels
 
 L'app envoie aujourd'hui les liens de reset via EmailJS. Supabase Auth envoie
 les siens nativement.
@@ -77,7 +127,7 @@ et réservé aux tests. Pour un usage réel, brancher un SMTP gratuit (Resend,
 Brevo) dans *Authentication → Emails → SMTP Settings*. Pour deux ou trois
 resets par an, le SMTP par défaut suffit.
 
-### 2.3 Les images
+### 3.3 Les images
 
 Deux dépendances externes aujourd'hui : ImgBB si `VITE_IMGBB_API_KEY` est
 défini, sinon Litterbox — **qui supprime les fichiers au bout de 24 h**
@@ -87,7 +137,7 @@ uploadées sans clé ImgBB sont donc mortes le lendemain.
 **Recommandation** : basculer sur Supabase Storage. Un bucket, 1 Go inclus,
 plus de dépendance tierce, et le bug des 24 h disparaît.
 
-### 2.4 Combien d'utilisateurs, et lesquels ?
+### 3.4 Combien d'utilisateurs, et lesquels ?
 
 Nécessaire pour dimensionner la phase 4. À récupérer d'un coup avec l'export de
 la phase 3 — surtout pas par une requête séparée, le quota Airtable étant déjà
@@ -123,7 +173,16 @@ dépassé.
 > soit active sur chaque table* (phase 2). La `service_role` a tous les droits :
 > elle ne doit jamais entrer dans le code front, ni dans un fichier versionné.
 
-5. Installer le client : `npm install @supabase/supabase-js`
+5. **Déclarer les URL de redirection** dans *Authentication → URL
+   Configuration* : `Site URL` à `https://joris-lft.github.io/2026/`, et en
+   `Redirect URLs` ajouter `https://joris-lft.github.io/2026/**` ainsi que
+   `http://localhost:5173/**` pour le développement.
+
+   > Sans cette déclaration, Supabase refuse toute redirection vers une URL
+   > inconnue : les liens de réinitialisation de la phase 4 ne mènent nulle
+   > part, sans message d'erreur explicite.
+
+6. Installer le client : `npm install @supabase/supabase-js`
 
 ### Le piège de la mise en pause
 
