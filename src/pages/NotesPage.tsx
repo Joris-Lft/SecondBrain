@@ -35,7 +35,7 @@ interface TitleDriftPrompt {
 export function NotesPage() {
   const { user } = useAuth();
   const { data: notes = [], isLoading, isError } = useNotes(user?.email);
-  const { options: availableTags } = useNoteTagOptions(notes);
+  const availableTags = useNoteTagOptions(notes);
   const createNoteMutation = useCreateNote(user?.id, user?.email);
   const updateNoteMutation = useUpdateNote(user?.id, user?.email);
   const deleteNoteMutation = useDeleteNote(user?.email);

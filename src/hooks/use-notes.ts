@@ -3,40 +3,27 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createNote,
   deleteNote,
-  getNoteTagOptions,
   getNotesForUser,
   updateNote,
 } from "@/services/notes";
 import type { CreateNoteInput, Note, UpdateNoteInput } from "@/types/notes";
-import { mergeOptions } from "@/utils/options";
 import { collectUniqueTags } from "@/utils/tags";
 
 export function notesQueryKey(userEmail: string | undefined) {
   return ["notes", userEmail] as const;
 }
 
-export function noteTagOptionsQueryKey() {
-  return ["noteTagOptions"] as const;
-}
-
+/**
+ * Options proposées à la saisie et au filtrage.
+ *
+ * Elles se déduisent des notes déjà chargées, et d'elles seules. Une requête
+ * dédiée existait du temps d'Airtable, où les tags vivaient dans le schéma
+ * d'un champ multi-select ; en base, ils n'existent que sur les notes. Deux
+ * sources pour la même donnée laissaient le filtre proposer un tag qu'aucune
+ * note chargée ne portait — un filtre qui ne renvoyait rien.
+ */
 export function useNoteTagOptions(notes: Note[] = []) {
-  const query = useQuery({
-    queryKey: noteTagOptionsQueryKey(),
-    queryFn: getNoteTagOptions,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Les tags déjà posés sur les notes complètent les options chargées : un tag
-  // tout juste créé reste visible même si le cache des options n'a pas suivi.
-  const options = useMemo(
-    () =>
-      mergeOptions(query.data ?? [], collectUniqueTags(notes)).sort((a: string, b: string) =>
-        a.localeCompare(b, "fr"),
-      ),
-    [query.data, notes],
-  );
-
-  return { ...query, options };
+  return useMemo(() => collectUniqueTags(notes), [notes]);
 }
 
 export function useNotes(userEmail: string | undefined) {
@@ -62,7 +49,6 @@ export function useCreateNote(
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: notesQueryKey(userEmail) });
-      void queryClient.invalidateQueries({ queryKey: noteTagOptionsQueryKey() });
     },
   });
 }
@@ -82,7 +68,6 @@ export function useUpdateNote(
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: notesQueryKey(userEmail) });
-      void queryClient.invalidateQueries({ queryKey: noteTagOptionsQueryKey() });
     },
   });
 }
