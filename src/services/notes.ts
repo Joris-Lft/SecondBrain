@@ -98,24 +98,6 @@ export async function getNotesForUser(): Promise<Note[]> {
   return (data ?? []).map(toNote);
 }
 
-/**
- * Options de tags proposées à la saisie.
- *
- * Airtable les tenait dans le schéma d'un champ multi-select, qu'il fallait
- * aller lire par l'API meta ; ici elles se déduisent des notes existantes.
- */
-export async function getNoteTagOptions(): Promise<string[]> {
-  const { data, error } = await supabase.from("notes").select("tags");
-
-  if (error) {
-    console.error("Get note tag options error:", error);
-    throw error;
-  }
-
-  const all = (data ?? []).flatMap((row) => (row.tags as string[]) ?? []);
-  return mergeOptions(all).sort((a, b) => a.localeCompare(b, "fr"));
-}
-
 export async function createNote(
   userId: string,
   input: CreateNoteInput,
