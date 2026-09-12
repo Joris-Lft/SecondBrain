@@ -45,6 +45,45 @@ export async function getHabitLogsForPeriods(
   return (data ?? []).map(toHabitLog);
 }
 
+/** Violation de la contrainte `habit_logs_habit_id_period_key`. */
+const DUPLICATE_LOG_CODE = "23505";
+
+function isDuplicateLog(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code: unknown }).code === DUPLICATE_LOG_CODE
+  );
+}
+
+/**
+ * Log déjà en base pour cette habitude et cette période.
+ *
+ * La contrainte d'unicité est globale alors que la lecture passe par la RLS :
+ * si rien ne revient, c'est que la ligne appartient à un autre compte.
+ */
+async function getExistingLog(
+  logData: CreateHabitLogInput,
+): Promise<{ log: HabitLog | null; error?: string }> {
+  const { data, error } = await supabase
+    .from("habit_logs")
+    .select("*")
+    .eq("habit_id", logData.habit_id)
+    .eq("period", logData.period)
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("Get existing habit log error:", error);
+    return {
+      log: null,
+      error: "Ce tracking est déjà enregistré pour cette période.",
+    };
+  }
+
+  return { log: toHabitLog(data) };
+}
+
 export async function createHabitLog(
   logData: CreateHabitLogInput,
 ): Promise<{ log: HabitLog | null; error?: string }> {
@@ -61,6 +100,13 @@ export async function createHabitLog(
     .single();
 
   if (error || !data) {
+    /*
+     * Le doublon n'est pas un échec : la période est déjà cochée en base. Le
+     * cache de l'écran, lui, ne rafraîchit pas tout seul — sans ce rattrapage,
+     * l'utilisateur reclique et retombe indéfiniment sur la même erreur.
+     */
+    if (isDuplicateLog(error)) return getExistingLog(logData);
+
     console.error("Create habit log error:", error);
     return {
       log: null,

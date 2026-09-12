@@ -472,6 +472,13 @@ export function useToggleHabitLog(
       if (context?.previous) {
         queryClient.setQueryData(queryKey, context.previous);
       }
+      /*
+       * Un échec veut dire que l'on ne sait plus ce que contient la base : une
+       * écriture peut avoir abouti sans que la réponse revienne. C'est le seul
+       * moment où l'on paie une relecture, pour que l'écran ne reste pas figé
+       * sur un état faux jusqu'au prochain montage.
+       */
+      void queryClient.invalidateQueries({ queryKey });
     },
     /*
      * Pas d'invalidation ici, volontairement : `onMutate` et `onSuccess`
