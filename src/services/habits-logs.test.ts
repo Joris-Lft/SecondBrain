@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // pour tester la logique du service.
 let insertResult: { data: unknown; error: unknown } = { data: null, error: null };
 let existingResult: { data: unknown; error: unknown } = { data: null, error: null };
+let deleteResult: { error: unknown } = { error: null };
+// Colonnes/valeurs passées à chaque `.eq()` du DELETE, dans l'ordre d'appel :
+// un DELETE non filtré passerait quand même les tests si on ne vérifiait que
+// le résultat, sans jamais s'assurer que le filtre a bien été posé.
+let deleteFilters: Array<[string, unknown]> = [];
 
 vi.mock("./supabase-client", () => ({
   supabase: {
@@ -16,6 +21,21 @@ vi.mock("./supabase-client", () => ({
         };
         return chain;
       },
+      // `.eq().eq()` n'est jamais résolu par un appel terminal (`.single()`,
+      // `.maybeSingle()`) : contrairement au vrai client Supabase, cette
+      // chaîne n'est pas "thenable" (pas de `.then()`) — elle fonctionne
+      // quand même parce que `await` sur un objet non-thenable renvoie
+      // simplement cet objet, ici déjà porteur du résultat via le spread.
+      delete: () => {
+        const chain = {
+          eq: (column: string, value: unknown) => {
+            deleteFilters.push([column, value]);
+            return chain;
+          },
+          ...deleteResult,
+        };
+        return chain;
+      },
     }),
   },
   getErrorMessage: (error: unknown, fallback: string) =>
@@ -24,7 +44,7 @@ vi.mock("./supabase-client", () => ({
       : fallback,
 }));
 
-const { createHabitLog } = await import("./habits-logs");
+const { createHabitLog, deleteHabitLogForPeriod } = await import("./habits-logs");
 
 const INPUT = {
   habit_id: "h1",
@@ -46,6 +66,7 @@ describe("createHabitLog", () => {
   beforeEach(() => {
     insertResult = { data: null, error: null };
     existingResult = { data: null, error: null };
+    deleteResult = { error: null };
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -88,6 +109,43 @@ describe("createHabitLog", () => {
     const result = await createHabitLog(INPUT);
 
     expect(result.log).toBeNull();
+    expect(result.error).toBe("row-level security");
+  });
+});
+
+describe("deleteHabitLogForPeriod", () => {
+  beforeEach(() => {
+    deleteResult = { error: null };
+    deleteFilters = [];
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it("filtre la suppression sur l'habitude, la période et l'utilisateur", async () => {
+    // La ligne la plus dangereuse du service : un DELETE mal filtré effacerait
+    // silencieusement toute la table. On vérifie donc les arguments réels
+    // passés à `.eq()`, pas seulement le résultat renvoyé.
+    await deleteHabitLogForPeriod("h1", "2026-09-12", "u1");
+
+    expect(deleteFilters).toEqual([
+      ["habit_id", "h1"],
+      ["period", "2026-09-12"],
+      ["user_id", "u1"],
+    ]);
+  });
+
+  it("supprime le log de l'habitude pour la période donnée", async () => {
+    const result = await deleteHabitLogForPeriod("h1", "2026-09-12", "u1");
+
+    expect(result.success).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("relaie l'erreur en cas d'échec", async () => {
+    deleteResult = { error: { code: "42501", message: "row-level security" } };
+
+    const result = await deleteHabitLogForPeriod("h1", "2026-09-12", "u1");
+
+    expect(result.success).toBe(false);
     expect(result.error).toBe("row-level security");
   });
 });

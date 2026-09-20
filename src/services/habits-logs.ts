@@ -132,3 +132,40 @@ export async function deleteHabitLog(
 
   return { success: true };
 }
+
+/**
+ * Supprime le log d'une habitude pour une période donnée, sans connaître son
+ * identifiant.
+ *
+ * L'arc ne transporte que des clés `habitId|periodKey` (pas d'id de log) : y
+ * ajouter une remontée d'id pour chaque case passée alourdirait le modèle pour
+ * un seul usage. Filtrer par (habit_id, period) évite ce détour et reste
+ * valable même si un id avait le temps de devenir périmé.
+ *
+ * Le filtre `user_id` est une défense en profondeur, comme le rappelle déjà
+ * `getExistingLog` : la contrainte d'unicité est globale alors que la lecture
+ * passe par la RLS, donc rien ne garantit à lui seul que (habit_id, period)
+ * ne désigne pas une ligne d'un autre compte.
+ */
+export async function deleteHabitLogForPeriod(
+  habitId: string,
+  period: string,
+  userId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const { error } = await supabase
+    .from("habit_logs")
+    .delete()
+    .eq("habit_id", habitId)
+    .eq("period", period)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Delete habit log for period error:", error);
+    return {
+      success: false,
+      error: getErrorMessage(error, "Erreur lors de la suppression"),
+    };
+  }
+
+  return { success: true };
+}

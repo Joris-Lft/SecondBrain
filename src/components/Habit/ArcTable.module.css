@@ -114,6 +114,19 @@
   margin-top: 2px;
 }
 
+/* Résumé de ligne pour les lecteurs d'écran uniquement : le nom et le score
+   restent visibles juste après, en texte normal. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Collés à gauche : sur 122 colonnes, le nom et le score sortiraient de l'écran. */
 .name {
   position: sticky;
@@ -155,6 +168,27 @@
   flex-shrink: 0;
   border-radius: 2px;
   background: color-mix(in srgb, var(--color-tint) 9%, transparent);
+}
+
+/* Cases `done`/`missed` seulement : `future` et `inactive` restent des `span`
+   inertes. Pas de zone tactile étendue : entre deux lignes il n'y a que 2 px
+   d'écart (`.row + .row { margin-top: 2px }`), donc tout agrandissement
+   vertical du bouton déborde sur la ligne voisine et lui vole ses clics — un
+   tap à côté serait alors silencieusement attribué à la mauvaise habitude.
+   La case reste donc à sa taille réelle (6 × 16 px) : le popover sert déjà de
+   filet, il affiche le nom et la date avant toute écriture, donc un tap
+   imprécis reste visible et sans conséquence tant qu'on ne valide pas. */
+.clickable {
+  position: relative;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.clickable:focus-visible {
+  outline: 2px solid var(--color-tint);
+  outline-offset: 2px;
 }
 
 .done {

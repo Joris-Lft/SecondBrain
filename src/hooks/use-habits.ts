@@ -15,6 +15,7 @@ import {
 import {
   createHabitLog,
   deleteHabitLog,
+  deleteHabitLogForPeriod,
   getHabitLogsForPeriods,
 } from "@/services/habits-logs";
 import { getPeriodKey } from "@/utils/habit-periods";
@@ -260,6 +261,10 @@ export function usePeriodHabits(
 const ARC_PERIOD_KEYS = getArcPeriodKeys(ARC_START, ARC_END);
 const ALL_ARC_KEYS = [...new Set(Object.values(ARC_PERIOD_KEYS).flat())];
 
+function arcLogsQueryKey(userEmail: string | undefined) {
+  return ["habit-arc-logs", userEmail, ARC_START, ARC_END] as const;
+}
+
 /**
  * Logs de tout l'arc. Requête séparée de celle des listes : elle est lente, et
  * n'a pas à être rejouée à chaque bascule — la période courante est corrigée
@@ -267,7 +272,7 @@ const ALL_ARC_KEYS = [...new Set(Object.values(ARC_PERIOD_KEYS).flat())];
  */
 function useArcLogs(userEmail: string | undefined) {
   return useQuery({
-    queryKey: ["habit-arc-logs", userEmail, ARC_START, ARC_END] as const,
+    queryKey: arcLogsQueryKey(userEmail),
     queryFn: () =>
       userEmail ? getHabitLogsForPeriods(ALL_ARC_KEYS) : [],
     enabled: !!userEmail,
@@ -391,7 +396,14 @@ export function useTogglingHabitIds(
 ): Set<string> {
   const ids = useMutationState({
     filters: { mutationKey: toggleMutationKey(period, userEmail), status: "pending" },
-    select: (mutation) => (mutation.state.variables as HabitWithStatus | undefined)?.id,
+    // `useToggleHabitLog` expose `id`, `useToggleArcCell` expose `habitId` :
+    // même bucket de mutations, deux formes de variables selon l'origine du clic.
+    select: (mutation) => {
+      const variables = mutation.state.variables as
+        | { id?: string; habitId?: string }
+        | undefined;
+      return variables?.id ?? variables?.habitId;
+    },
   });
 
   return new Set(ids.filter((id): id is string => !!id));
@@ -488,5 +500,187 @@ export function useToggleHabitLog(
      * pour réécrire des données identiques. `onError` restaure l'instantané
      * précédent, ce qui couvre le cas où l'écriture échoue.
      */
+  });
+}
+
+/** Variables de la bascule d'une case de l'arc, passée ou courante. */
+interface ToggleArcCellVariables {
+  habitId: string;
+  periodKey: string;
+  completed: boolean;
+}
+
+/** Contexte transporté d'`onMutate` à `onError`/`onSuccess` pour restaurer le bon cache. */
+interface ToggleArcCellContext {
+  isCurrentPeriod: boolean;
+  previousList?: HabitsData;
+  previousArcLogs?: HabitLog[];
+}
+
+/**
+ * Bascule une case de la timeline de l'arc, qu'elle soit passée ou courante.
+ *
+ * `frequency` est fixée à l'appel du hook, et non passée à chaque mutation :
+ * une instance ne bascule jamais qu'une seule case (celle de son popover), la
+ * fréquence ne varie donc pas d'un appel à l'autre — elle sert aussi de socle
+ * à `mutationKey`, qui doit rester stable.
+ *
+ * Contrairement à `useToggleHabitLog`, la suppression passe par
+ * `deleteHabitLogForPeriod` plutôt que par un identifiant de log : le modèle
+ * de l'arc (`completionKey`) ne connaît que des paires habitude/période.
+ *
+ * Les deux natures de case ne vivent pas dans le même cache (voir
+ * `useArcTable`) : la période courante est reconstruite depuis les listes à
+ * cocher, jamais depuis le cache de l'arc au repos. Mais ce cache de l'arc
+ * doit quand même être patché pour la période courante : c'est lui qui reste
+ * la seule source une fois que le jour bascule et que la période n'est plus
+ * « courante » (l'écran resté ouvert au passage de minuit ne doit pas voir la
+ * case d'hier redevenir « non fait »).
+ */
+export function useToggleArcCell(
+  userId: string | undefined,
+  userEmail: string | undefined,
+  frequency: HabitFrequency,
+) {
+  const queryClient = useQueryClient();
+  const periodKeys = useCurrentPeriodKeys();
+  const listQueryKey = habitsQueryKey(userEmail, periodKeys);
+  const arcQueryKey = arcLogsQueryKey(userEmail);
+  // Même bucket que `useToggleHabitLog` pour cette période : une bascule de
+  // l'arc sur le jour courant doit aussi verrouiller la ligne correspondante
+  // dans `PeriodHabit`, sans quoi les deux écritures peuvent se chevaucher.
+  const mutationKey = toggleMutationKey(PERIOD_BY_FREQUENCY[frequency], userEmail);
+
+  const patchList = (habitId: string, patch: Partial<HabitWithStatus>) => {
+    const period = PERIOD_BY_FREQUENCY[frequency];
+    queryClient.setQueryData<HabitsData>(listQueryKey, (current) =>
+      current
+        ? {
+            ...current,
+            periods: {
+              ...current.periods,
+              [period]: current.periods[period].map((item) =>
+                item.id === habitId ? { ...item, ...patch } : item,
+              ),
+            },
+          }
+        : current,
+    );
+  };
+
+  /** Ajoute ou retire un log synthétique : l'arc ne lit que `habit_id`/`period`. */
+  const patchArcLogs = (habitId: string, periodKey: string, completed: boolean) => {
+    queryClient.setQueryData<HabitLog[]>(arcQueryKey, (current) => {
+      if (!current) return current;
+
+      if (completed) {
+        return current.filter(
+          (log) => !(log.habit_id === habitId && log.period === periodKey),
+        );
+      }
+
+      return [
+        ...current,
+        {
+          id: `optimistic:${completionKey(habitId, periodKey)}`,
+          habit_id: habitId,
+          user_id: userId ?? "",
+          completed_at: new Date().toISOString(),
+          frequency,
+          period: periodKey,
+        },
+      ];
+    });
+  };
+
+  /** Remplace le log synthétique par le vrai, une fois l'écriture confirmée. */
+  const settleArcLog = (habitId: string, periodKey: string, log: HabitLog | undefined) => {
+    if (!log) return;
+    queryClient.setQueryData<HabitLog[]>(arcQueryKey, (current) =>
+      current?.map((entry) =>
+        entry.habit_id === habitId && entry.period === periodKey ? log : entry,
+      ),
+    );
+  };
+
+  return useMutation({
+    mutationKey,
+    mutationFn: async ({ habitId, periodKey, completed }: ToggleArcCellVariables) => {
+      if (!userId) throw new Error("Utilisateur non connecté");
+
+      if (completed) {
+        const result = await deleteHabitLogForPeriod(habitId, periodKey, userId);
+        if (!result.success) throw new Error(result.error);
+        // Une suppression qui n'a touché aucune ligne reste un succès : la
+        // case doit finir décochée dans tous les cas, y compris quand le log
+        // a déjà été supprimé par un appel concurrent.
+        return { logId: undefined, log: undefined };
+      }
+
+      const result = await createHabitLog({
+        habit_id: habitId,
+        user_id: userId,
+        frequency,
+        period: periodKey,
+      });
+      if (!result.log) throw new Error(result.error);
+
+      return { logId: result.log.id, log: result.log };
+    },
+    // Bascule immédiate de la case, comme `useToggleHabitLog` : attendre la
+    // réponse du serveur donnerait l'impression que le clic dans le popover
+    // n'a rien fait.
+    onMutate: async ({
+      habitId,
+      periodKey,
+      completed,
+    }: ToggleArcCellVariables): Promise<ToggleArcCellContext> => {
+      const isCurrentPeriod = periodKey === periodKeys[frequency];
+
+      await queryClient.cancelQueries({ queryKey: arcQueryKey });
+      const previousArcLogs = queryClient.getQueryData<HabitLog[]>(arcQueryKey);
+      patchArcLogs(habitId, periodKey, completed);
+
+      if (!isCurrentPeriod) {
+        return { isCurrentPeriod, previousArcLogs };
+      }
+
+      await queryClient.cancelQueries({ queryKey: listQueryKey });
+      const previousList = queryClient.getQueryData<HabitsData>(listQueryKey);
+      patchList(habitId, { completed: !completed, logId: undefined });
+
+      return { isCurrentPeriod, previousList, previousArcLogs };
+    },
+    // Le vrai identifiant du log rejoint le cache des listes sans attendre le
+    // refetch, sinon un second clic recrée un log au lieu de le supprimer. Le
+    // cache de l'arc, lui, n'a pas besoin de cet id pour fonctionner, mais son
+    // log synthétique (`optimistic:…`, `user_id: ""`) est persisté tel quel
+    // tant qu'on ne le remplace pas : `settleArcLog` évite qu'il y reste.
+    onSuccess: ({ logId, log }, { habitId, periodKey }, context) => {
+      if (context?.isCurrentPeriod) patchList(habitId, { logId });
+      settleArcLog(habitId, periodKey, log);
+    },
+    onError: (_error, _variables, context) => {
+      if (!context) return;
+
+      if (context.previousArcLogs) {
+        queryClient.setQueryData(arcQueryKey, context.previousArcLogs);
+      }
+      if (context.isCurrentPeriod && context.previousList) {
+        queryClient.setQueryData(listQueryKey, context.previousList);
+      }
+
+      /*
+       * Même politique que `useToggleHabitLog` : un échec laisse planer un
+       * doute sur ce que contient réellement la base, donc on relit une fois
+       * les clés touchées plutôt que de faire confiance au rollback local.
+       */
+      const queryKeys = context.isCurrentPeriod
+        ? [arcQueryKey, listQueryKey]
+        : [arcQueryKey];
+      queryKeys.forEach((queryKey) => void queryClient.invalidateQueries({ queryKey }));
+    },
+    // Pas d'invalidation au succès, pour la même raison que `useToggleHabitLog` :
+    // `onMutate`/`onSuccess` laissent déjà le cache dans l'état attendu.
   });
 }

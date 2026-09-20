@@ -1,0 +1,42 @@
+/* `position: fixed` + portail sur `document.body` : le conteneur de l'arc
+   défile horizontalement, et un positionnement relatif à son intérieur se
+   ferait rogner par `overflow-x: auto`. */
+.popover {
+  position: fixed;
+  /* Échelle du projet : 50/100/200/300 (voir `Modal.module.css`). Le popover
+     n'a pas vocation à passer au-dessus d'une modale ouverte par-dessus lui. */
+  z-index: 250;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.habit {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.date {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+.state {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-danger);
+}
