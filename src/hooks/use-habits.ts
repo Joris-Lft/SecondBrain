@@ -14,7 +14,6 @@ import {
 } from "@/services/habits";
 import {
   createHabitLog,
-  deleteHabitLog,
   deleteHabitLogForPeriod,
   getHabitLogsForPeriods,
 } from "@/services/habits-logs";
@@ -38,7 +37,6 @@ import type { PeriodType } from "@/types/tracking";
 export interface HabitWithStatus extends Habit {
   title: string;
   completed: boolean;
-  logId?: string;
 }
 
 /** Les habits de chaque période, prêts à l'affichage. */
@@ -187,7 +185,6 @@ function buildOverview(
       ...habit,
       title: habit.name,
       completed: !!log,
-      logId: log?.id,
     });
   });
 
@@ -442,25 +439,32 @@ export function useToggleHabitLog(
     mutationFn: async (habit: HabitWithStatus) => {
       if (!userId) throw new Error("Utilisateur non connecté");
 
-      if (habit.completed && habit.logId) {
-        const result = await deleteHabitLog(habit.logId);
-        if (!result.success) throw new Error(result.error);
-        return { logId: undefined };
-      }
-
       // La période vient du rendu courant et non de l'heure du clic : passé
       // minuit, l'ancienne version écrivait sur un jour que l'écran n'affichait
       // pas encore.
       const frequency = FREQUENCY_BY_PERIOD[period];
+      const periodKey = periodKeys[frequency];
+
+      /*
+       * Suppression par (habitude, période) et non par identifiant de log :
+       * l'écran n'a plus besoin de connaître l'id pour décocher. L'ancienne
+       * version se gardait d'essayer quand l'id manquait — pendant une coche
+       * encore en vol, par exemple — et repartait alors créer un second log
+       * là où l'utilisateur voulait retirer le premier.
+       */
+      if (habit.completed) {
+        const result = await deleteHabitLogForPeriod(habit.id, periodKey, userId);
+        if (!result.success) throw new Error(result.error);
+        return;
+      }
+
       const result = await createHabitLog({
         habit_id: habit.id,
         user_id: userId,
         frequency,
-        period: periodKeys[frequency],
+        period: periodKey,
       });
       if (!result.log) throw new Error(result.error);
-
-      return { logId: result.log.id };
     },
     // Bascule immédiate de la case : le serveur répond en quelques centaines de
     // millisecondes, l'attendre donnait l'impression que le clic était perdu.
@@ -468,17 +472,9 @@ export function useToggleHabitLog(
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<HabitsData>(queryKey);
 
-      patchHabit(habit.id, {
-        completed: !habit.completed,
-        logId: undefined,
-      });
+      patchHabit(habit.id, { completed: !habit.completed });
 
       return { previous };
-    },
-    // Le vrai identifiant du log doit rejoindre le cache sans attendre le
-    // refetch, sinon un second clic recrée un log au lieu de supprimer le premier.
-    onSuccess: ({ logId }, habit) => {
-      patchHabit(habit.id, { logId });
     },
     onError: (_error, _habit, context) => {
       if (context?.previous) {
@@ -493,11 +489,10 @@ export function useToggleHabitLog(
       void queryClient.invalidateQueries({ queryKey });
     },
     /*
-     * Pas d'invalidation ici, volontairement : `onMutate` et `onSuccess`
-     * laissent déjà le cache dans l'état exact que renverrait le serveur
-     * (case cochée, identifiant de log réel). Rejouer la requête coûtait
-     * plusieurs appels API par clic — l'essentiel de notre consommation —
-     * pour réécrire des données identiques. `onError` restaure l'instantané
+     * Pas d'invalidation ici, volontairement : `onMutate` laisse déjà le cache
+     * dans l'état exact que renverrait le serveur. Rejouer la requête coûtait
+     * plusieurs appels API par clic — l'essentiel de notre consommation — pour
+     * réécrire des données identiques. `onError` restaure l'instantané
      * précédent, ce qui couvre le cas où l'écriture échoue.
      */
   });
@@ -525,9 +520,9 @@ interface ToggleArcCellContext {
  * fréquence ne varie donc pas d'un appel à l'autre — elle sert aussi de socle
  * à `mutationKey`, qui doit rester stable.
  *
- * Contrairement à `useToggleHabitLog`, la suppression passe par
- * `deleteHabitLogForPeriod` plutôt que par un identifiant de log : le modèle
- * de l'arc (`completionKey`) ne connaît que des paires habitude/période.
+ * La suppression passe par `deleteHabitLogForPeriod`, comme celle des listes :
+ * le modèle de l'arc (`completionKey`) ne connaît que des paires
+ * habitude/période, et aucun des deux écrans n'a besoin d'un id de log.
  *
  * Les deux natures de case ne vivent pas dans le même cache (voir
  * `useArcTable`) : la période courante est reconstruite depuis les listes à
@@ -546,9 +541,16 @@ export function useToggleArcCell(
   const periodKeys = useCurrentPeriodKeys();
   const listQueryKey = habitsQueryKey(userEmail, periodKeys);
   const arcQueryKey = arcLogsQueryKey(userEmail);
-  // Même bucket que `useToggleHabitLog` pour cette période : une bascule de
-  // l'arc sur le jour courant doit aussi verrouiller la ligne correspondante
-  // dans `PeriodHabit`, sans quoi les deux écritures peuvent se chevaucher.
+  /*
+   * Même bucket que `useToggleHabitLog` pour cette période, afin que
+   * `useTogglingHabitIds` voie cette bascule et désactive la ligne
+   * correspondante dans `PeriodHabit`.
+   *
+   * C'est bien ce verrou d'interface qui empêche deux écritures concurrentes,
+   * pas la clé elle-même : une `mutationKey` partagée ne sérialise rien. Et il
+   * ne joue que dans ce sens — le popover de l'arc, lui, ne lit que son propre
+   * `isPending`.
+   */
   const mutationKey = toggleMutationKey(PERIOD_BY_FREQUENCY[frequency], userEmail);
 
   const patchList = (habitId: string, patch: Partial<HabitWithStatus>) => {
@@ -614,7 +616,7 @@ export function useToggleArcCell(
         // Une suppression qui n'a touché aucune ligne reste un succès : la
         // case doit finir décochée dans tous les cas, y compris quand le log
         // a déjà été supprimé par un appel concurrent.
-        return { logId: undefined, log: undefined };
+        return { log: undefined };
       }
 
       const result = await createHabitLog({
@@ -625,7 +627,7 @@ export function useToggleArcCell(
       });
       if (!result.log) throw new Error(result.error);
 
-      return { logId: result.log.id, log: result.log };
+      return { log: result.log };
     },
     // Bascule immédiate de la case, comme `useToggleHabitLog` : attendre la
     // réponse du serveur donnerait l'impression que le clic dans le popover
@@ -647,17 +649,14 @@ export function useToggleArcCell(
 
       await queryClient.cancelQueries({ queryKey: listQueryKey });
       const previousList = queryClient.getQueryData<HabitsData>(listQueryKey);
-      patchList(habitId, { completed: !completed, logId: undefined });
+      patchList(habitId, { completed: !completed });
 
       return { isCurrentPeriod, previousList, previousArcLogs };
     },
-    // Le vrai identifiant du log rejoint le cache des listes sans attendre le
-    // refetch, sinon un second clic recrée un log au lieu de le supprimer. Le
-    // cache de l'arc, lui, n'a pas besoin de cet id pour fonctionner, mais son
-    // log synthétique (`optimistic:…`, `user_id: ""`) est persisté tel quel
-    // tant qu'on ne le remplace pas : `settleArcLog` évite qu'il y reste.
-    onSuccess: ({ logId, log }, { habitId, periodKey }, context) => {
-      if (context?.isCurrentPeriod) patchList(habitId, { logId });
+    // Le log synthétique de l'arc (`optimistic:…`, `user_id: ""`) est persisté
+    // tel quel tant qu'on ne le remplace pas : `settleArcLog` évite qu'il reste
+    // sur disque jusqu'à 24 h.
+    onSuccess: ({ log }, { habitId, periodKey }) => {
       settleArcLog(habitId, periodKey, log);
     },
     onError: (_error, _variables, context) => {
