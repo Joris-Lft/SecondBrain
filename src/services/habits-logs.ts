@@ -117,30 +117,18 @@ export async function createHabitLog(
   return { log: toHabitLog(data) };
 }
 
-export async function deleteHabitLog(
-  logId: string,
-): Promise<{ success: boolean; error?: string }> {
-  const { error } = await supabase.from("habit_logs").delete().eq("id", logId);
-
-  if (error) {
-    console.error("Delete habit log error:", error);
-    return {
-      success: false,
-      error: getErrorMessage(error, "Erreur lors de la suppression"),
-    };
-  }
-
-  return { success: true };
-}
-
 /**
  * Supprime le log d'une habitude pour une période donnée, sans connaître son
  * identifiant.
  *
- * L'arc ne transporte que des clés `habitId|periodKey` (pas d'id de log) : y
- * ajouter une remontée d'id pour chaque case passée alourdirait le modèle pour
- * un seul usage. Filtrer par (habit_id, period) évite ce détour et reste
- * valable même si un id avait le temps de devenir périmé.
+ * Unique chemin de suppression, partagé par les listes du jour et la timeline.
+ * Filtrer par (habit_id, period) plutôt que par id de log reste valable quand
+ * l'id manque ou a eu le temps de devenir périmé — le cache des listes est
+ * persisté 24 h, il pouvait donc en restituer un que la base ne connaissait
+ * plus. Ça épargne au passage à l'arc de remonter un id par case.
+ *
+ * Une suppression qui ne touche aucune ligne reste un succès : l'appelant veut
+ * que la case finisse décochée, et c'est déjà le cas.
  *
  * Le filtre `user_id` est une défense en profondeur, comme le rappelle déjà
  * `getExistingLog` : la contrainte d'unicité est globale alors que la lecture
