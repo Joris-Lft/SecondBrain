@@ -1,15 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { ARC_END, ARC_START } from "@/constants/arc";
 import { useAuth } from "@/contexts/auth-context";
 import { useArcTable } from "@/hooks/use-habits";
 import { Skeleton } from "@/components/ui/Skeleton";
-import type {
-  ArcCell,
-  ArcCellState,
-  ArcSection,
-  ArcTableModel,
-} from "@/utils/arc-table";
+import { ArcCellPopover } from "./ArcCellPopover";
+import { CELL_STATE_LABELS } from "./arc-cell-state-labels";
+import { completionKey } from "@/utils/arc-table";
+import type { ArcCell, ArcSection, ArcTableModel } from "@/utils/arc-table";
 import type { HabitFrequency } from "@/types/habits";
 import styles from "./ArcTable.module.css";
 
@@ -17,13 +15,6 @@ const SECTION_TITLES: Record<HabitFrequency, string> = {
   daily: "Quotidien",
   weekly: "Hebdomadaire",
   monthly: "Mensuel",
-};
-
-const CELL_STATE_LABELS: Record<ArcCellState, string> = {
-  done: "fait",
-  missed: "non fait",
-  future: "à venir",
-  inactive: "habitude pas encore créée",
 };
 
 /** Largeur d'une case, en jours d'arc : la géométrie vit dans le CSS. */
@@ -39,39 +30,113 @@ function formatScore(score: number | null): string {
   return score === null ? "—" : `${score} %`;
 }
 
-function Cell({ cell }: { cell: ArcCell }) {
+/** Résumé de ligne pour les lecteurs d'écran : une seule annonce plutôt que le
+ *  nom puis, une par une, la centaine de cases qui suivent. */
+function rowSummary(name: string, score: number | null): string {
+  return score === null
+    ? `${name} : aucune période close`
+    : `${name} : ${score} % de réussite sur l'arc`;
+}
+
+function scoreLabel(score: number | null): string {
+  return score === null ? "Score : aucune période close" : `Score : ${score} %`;
+}
+
+/** Case sélectionnée : de quoi rouvrir son popover de rattrapage. */
+interface SelectedCell {
+  habitId: string;
+  habitName: string;
+  frequency: HabitFrequency;
+  cell: ArcCell & { state: "done" | "missed" };
+  anchor: DOMRect;
+  /** Bouton d'origine : reçoit le focus quand le popover se referme. */
+  trigger: HTMLButtonElement;
+}
+
+interface CellProps {
+  cell: ArcCell;
+  rowName: string;
+  frequency: HabitFrequency;
+  habitId: string;
+  /** Clé (`completionKey`) de la case dont le popover est actuellement ouvert. */
+  openCellKey: string | null;
+  onSelect: (selection: SelectedCell) => void;
+}
+
+function Cell({ cell, rowName, frequency, habitId, openCellKey, onSelect }: CellProps) {
+  const title = `${cell.label} · ${CELL_STATE_LABELS[cell.state]}`;
+
+  // `future` et `inactive` ne portent aucune écriture possible : la case reste
+  // un simple repère visuel, jamais un bouton.
+  if (cell.state !== "done" && cell.state !== "missed") {
+    return (
+      <span
+        className={`${styles.cell} ${styles[cell.state]}`}
+        style={{ width: spanWidth(cell.span) }}
+        title={title}
+      />
+    );
+  }
+
+  // Capturé dans une variable locale : une fois dans la fermeture `onClick`,
+  // TypeScript ne conserve plus l'affinement de `cell.state` fait ci-dessus.
+  const state = cell.state;
+
   return (
-    <span
-      className={`${styles.cell} ${styles[cell.state]}`}
+    <button
+      type="button"
+      className={`${styles.cell} ${styles[state]} ${styles.clickable}`}
       style={{ width: spanWidth(cell.span) }}
-      title={`${cell.label} · ${CELL_STATE_LABELS[cell.state]}`}
+      aria-label={`${rowName}, ${cell.label}, ${CELL_STATE_LABELS[state]}`}
+      aria-haspopup="dialog"
+      aria-expanded={openCellKey === completionKey(habitId, cell.periodKey)}
+      onClick={(event) =>
+        onSelect({
+          habitId,
+          habitName: rowName,
+          frequency,
+          cell: { ...cell, state },
+          anchor: event.currentTarget.getBoundingClientRect(),
+          trigger: event.currentTarget,
+        })
+      }
     />
   );
 }
 
-function Section({ section }: { section: ArcSection }) {
+function Section({
+  section,
+  openCellKey,
+  onSelectCell,
+}: {
+  section: ArcSection;
+  openCellKey: string | null;
+  onSelectCell: (selection: SelectedCell) => void;
+}) {
   return (
     <div className={styles.section}>
       <p className={styles.sectionTitle}>{SECTION_TITLES[section.frequency]}</p>
 
       {section.rows.map((row) => (
-        <div
-          key={row.habitId}
-          className={styles.row}
-          role="img"
-          aria-label={
-            row.score === null
-              ? `${row.name} : aucune période close`
-              : `${row.name} : ${row.score} % de réussite sur l'arc`
-          }
-        >
+        <div key={row.habitId} className={styles.row}>
+          <span className={styles.srOnly}>{rowSummary(row.name, row.score)}</span>
           <span className={styles.name} title={row.name}>
             {row.name}
           </span>
-          <span className={styles.score}>{formatScore(row.score)}</span>
-          <span className={styles.cells} aria-hidden>
+          <span className={styles.score} aria-label={scoreLabel(row.score)}>
+            {formatScore(row.score)}
+          </span>
+          <span className={styles.cells}>
             {row.cells.map((cell) => (
-              <Cell key={cell.periodKey} cell={cell} />
+              <Cell
+                key={cell.periodKey}
+                cell={cell}
+                rowName={row.name}
+                frequency={section.frequency}
+                habitId={row.habitId}
+                openCellKey={openCellKey}
+                onSelect={onSelectCell}
+              />
             ))}
           </span>
         </div>
@@ -113,7 +178,15 @@ function useScrollToToday(todayIndex: number) {
   return scrollRef;
 }
 
-function Grid({ table }: { table: ArcTableModel }) {
+function Grid({
+  table,
+  openCellKey,
+  onSelectCell,
+}: {
+  table: ArcTableModel;
+  openCellKey: string | null;
+  onSelectCell: (selection: SelectedCell) => void;
+}) {
   const scrollRef = useScrollToToday(table.todayIndex);
 
   return (
@@ -145,7 +218,12 @@ function Grid({ table }: { table: ArcTableModel }) {
         </div>
 
         {table.sections.map((section) => (
-          <Section key={section.frequency} section={section} />
+          <Section
+            key={section.frequency}
+            section={section}
+            openCellKey={openCellKey}
+            onSelectCell={onSelectCell}
+          />
         ))}
       </div>
     </div>
@@ -156,8 +234,16 @@ function Grid({ table }: { table: ArcTableModel }) {
 export function ArcTable() {
   const { user } = useAuth();
   const { table, isLoading, isLoadingError } = useArcTable(user?.email);
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  // Identité stable : sans elle, le popover réabonne ses quatre écouteurs
+  // (Échap, clic extérieur, scroll, resize) à chaque rendu d'`ArcTable`.
+  const closePopover = useCallback(() => setSelectedCell(null), []);
 
   if (!isLoading && !isLoadingError && table?.sections.length === 0) return null;
+
+  const openCellKey = selectedCell
+    ? completionKey(selectedCell.habitId, selectedCell.cell.periodKey)
+    : null;
 
   return (
     <section className={styles.container}>
@@ -179,7 +265,7 @@ export function ArcTable() {
           </p>
         ) : (
           <>
-            <Grid table={table} />
+            <Grid table={table} openCellKey={openCellKey} onSelectCell={setSelectedCell} />
 
             <p className={styles.legend}>
               <span className={styles.swatch} />
@@ -196,6 +282,21 @@ export function ArcTable() {
           </>
         )}
       </div>
+
+      {selectedCell && (
+        <ArcCellPopover
+          key={openCellKey}
+          habitId={selectedCell.habitId}
+          habitName={selectedCell.habitName}
+          frequency={selectedCell.frequency}
+          cell={selectedCell.cell}
+          anchor={selectedCell.anchor}
+          trigger={selectedCell.trigger}
+          userId={user?.id}
+          userEmail={user?.email}
+          onClose={closePopover}
+        />
+      )}
     </section>
   );
 }
